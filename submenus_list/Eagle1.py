@@ -1,21 +1,15 @@
 # -*- coding: utf-8 -*-
 import os
 from enigma import getDesktop
-
-# Import direct hardware helper class
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
-# Import standalone network helpers
 from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
-
 from Components.ActionMap import NumberActionMap
 from Components.Sources.StaticText import StaticText
 from Components.Label import Label
 from Components.Pixmap import Pixmap
-
 from Tools.LoadPixmap import LoadPixmap
 from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
-
 from Screens.Screen import Screen
 from Screens.MessageBox import MessageBox
 from Components.ConfigList import ConfigListScreen
@@ -25,7 +19,6 @@ from Components.config import (
     ConfigInteger,
     getConfigListEntry
 )
-
 from Plugins.Extensions.ServerEagleSat.__init__ import Version, Panel
 
 PANEL_DIRS = [
@@ -40,7 +33,6 @@ class Eagle1(Screen, ConfigListScreen):
         Screen.__init__(self, session)
         self.session = session
 
-        # Read layout template file exactly like your original setup
         try:
             skin_file = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/skins_list/eagle1-fhd.xml")
             with open(skin_file, "r") as f:
@@ -52,7 +44,6 @@ class Eagle1(Screen, ConfigListScreen):
         self.setTitle(_("ServerEagleSat - Add Reader"))
         self.panel_dir = self.detect_panel_dir()
         
-        # Safe storage path initialization
         if not os.path.exists(self.panel_dir):
             try:
                 os.makedirs(self.panel_dir)
@@ -69,7 +60,6 @@ class Eagle1(Screen, ConfigListScreen):
 
         self.system_info = SystemInfo()
 
-        # CONFIG ENGINE CORE FIELD DEFINITIONS
         self.label_choice = ConfigSelection(default="ServerEagle", choices=[("ServerEagle", "ServerEagle"), ("ElieSat", "ElieSat"), ("Custom", "Custom")])
         self.label_custom = ConfigText(default="server_name", fixed_size=False)
         self.label_custom.useKeyboard = False
@@ -83,14 +73,12 @@ class Eagle1(Screen, ConfigListScreen):
         self.inactivitytimeout = ConfigInteger(default=30, limits=(1, 99))
         self.group = ConfigInteger(default=1, limits=(0, 99))
         
-        # CCcam Specific Fields
         self.disablecrccws = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
         self.cccamversion = ConfigSelection(default="2.0.11", choices=[(v, v) for v in ["2.0.11", "2.1.1", "2.1.2", "2.1.3", "2.1.4", "2.2.0", "2.2.1", "2.3.0", "2.3.1", "2.3.2"]])
         self.cccwantemu = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
         self.ccckeepalive = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
         self.audisabled = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
         
-        # Newcamd/Mgcamd Specific Fields
         self.key = ConfigText(default="0102030405060708091011121314", fixed_size=False)
         self.disableserverfilter = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
         self.connectoninit = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
@@ -98,40 +86,33 @@ class Eagle1(Screen, ConfigListScreen):
         for element in [self.host, self.user, self.passw, self.cccamversion, self.key, self.label_custom]:
             element.useKeyboard = False
 
-        # Load historical settings safely prior to population
         self.load_last_reader_to_config()
 
-        # Initialize ConfigListScreen with an empty list base
         ConfigListScreen.__init__(self, [], session=session)
         
-        # Build initial components list entries
         self.update_fields()
 
-        # Field Notifiers for adaptive visibility shifts
         self.label_choice.addNotifier(self.on_config_change, initial_call=False)
         self.protocol.addNotifier(self.on_config_change, initial_call=False)
 
-        # ACTIONS MAP DATA - Fully integrated ConfigListScreen behavior
         self["NumberActions"] = NumberActionMap(["NumberActions"], {'0': self.keyNumberGlobal})
         self["shortcuts"] = NumberActionMap(
             ["ShortcutActions", "WizardActions", "ColorActions", "HotkeyActions"],
             {
-                "ok": self.keyOK,               # Interact with individual fields
+                "ok": self.keyOK,
                 "cancel": self.exit,
                 "back": self.exit,
-                "green": self.keyGreenSave,     # GREEN button saves changes
-                "red": self.sharing,            # RED button runs target file check
-                "yellow": self.grid,            # YELLOW shows last backup reader
-                "blue": self.scriptslist,       # BLUE restores last reader backup to systems
+                "green": self.keyGreenSave,
+                "red": self.sharing,
+                "yellow": self.grid,
+                "blue": self.scriptslist,
                 "info": self.infoKey,
             }
         )
 
-        # UI SIDE BARS
         self["left_bar"] = Label("\n".join(list("Version " + Version)))
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
 
-        # INITIALIZE SYSTEM METRIC CONFIG LABELS
         labels = ["MemoryLabel", "SwapLabel", "FlashLabel", "gstreamerLabel",
                   "pythonLabel", "CPULabel", "ipLabel", "macLabel",
                   "HardwareLabel", "ImageLabel", "KernelLabel",
@@ -141,7 +122,6 @@ class Eagle1(Screen, ConfigListScreen):
         for l, t in zip(labels, text):
             self[l] = StaticText(t)
 
-        # INITIALIZE SYSTEM METRIC VALUES CONTAINERS
         values = ["memTotal", "swapTotal", "flashTotal", "device", "gstreamer", "python",
                   "Hardware", "Image", "CPU", "Kernel", "ipInfo", "macInfo",
                   "EnigmaVersion", "driver", "internet"]
@@ -155,7 +135,6 @@ class Eagle1(Screen, ConfigListScreen):
         self.onLayoutFinish.append(self.loadScreenData)
 
     def parse_subscription_file(self):
-        """Helper to safely read subscription.txt and return a list of reader dictionaries."""
         file_path = os.path.join(self.panel_dir, "subscription.txt")
         if not os.path.exists(file_path):
             return []
@@ -179,7 +158,6 @@ class Eagle1(Screen, ConfigListScreen):
             return []
 
     def load_last_reader_to_config(self):
-        """Reads local subscription configuration text history cleanly into state variables."""
         readers = self.parse_subscription_file()
         if not readers:
             return
@@ -239,7 +217,6 @@ class Eagle1(Screen, ConfigListScreen):
             print("[ServerEagleSat] Error Restoring History Configuration Setup:", e)
 
     def update_fields(self):
-        """Constructs configuration lists using standard components API."""
         cfg_list = [
             getConfigListEntry("Label:", self.label_choice),
         ]
@@ -273,15 +250,12 @@ class Eagle1(Screen, ConfigListScreen):
                 getConfigListEntry("Connect on Init:", self.connectoninit),
             ]
 
-        # Feeds the correct config structures directly back to the system config key handler
         self["config"].l.setList(cfg_list)
 
     def on_config_change(self, cfg=None):
-        """Handles screen adjustments transparently without losing selection index tracking."""
         self.update_fields()
 
     def keyGreenSave(self):
-        """Executes the data save routine and performs softcam system restarts (Merged Output)."""
         summary_report = self.add_reader()
         restart_report = self.restartSoftcam()
         
@@ -289,11 +263,9 @@ class Eagle1(Screen, ConfigListScreen):
         self.session.open(MessageBox, final_message, MessageBox.TYPE_INFO)
 
     def sharing(self):
-        """Triggered by the RED button shortcut: Check available target paths."""
         self.checkAvailableSharingConfigs()
 
     def checkAvailableSharingConfigs(self):
-        """Scans filesystem locations and prints active/missing configuration targets to the screen."""
         targets = [
             os.path.join(self.panel_dir, "subscription.txt"),
             "/etc/tuxbox/config/ncam.server",
@@ -317,7 +289,6 @@ class Eagle1(Screen, ConfigListScreen):
             else:
                 missing_files.append(path)
 
-        # Construct diagnostic readout presentation text
         message = _("--- Active Sharing Config Files Found ---\n")
         if found_files:
             message += "\n".join([f"✔ {p}" for p in found_files])
@@ -330,11 +301,9 @@ class Eagle1(Screen, ConfigListScreen):
         else:
             message += _("None.")
 
-        # Fire standard scrolling information overlay alert cleanly
         self.session.open(MessageBox, message, MessageBox.TYPE_INFO)
 
     def build_entry_string(self, label, enable, protocol, host, port, user, password, extra_dict=None):
-        """Unified string template writer for generation optimization."""
         entry = (
             "[reader]\n"
             f"label = {label}\n"
@@ -352,7 +321,6 @@ class Eagle1(Screen, ConfigListScreen):
         return entry
 
     def add_reader(self):
-        """Appends the formatted screen configuration entry across your active server file paths."""
         proto = self.protocol.value.lower()
         lbl_val = self.label_custom.value if self.label_choice.value == "Custom" else self.label_choice.value
         enable_val = "1" if self.status.value == "enabled" else "0"
@@ -381,7 +349,6 @@ class Eagle1(Screen, ConfigListScreen):
         return self.write_to_targets(entry, self.host.value, self.port.value, self.user.value, self.passw.value)
 
     def write_to_targets(self, entry_str, host, port, user, password):
-        """Appends built blocks into config destinations dynamically, validating duplicates."""
         targets = [
             os.path.join(self.panel_dir, "subscription.txt"),
             "/etc/tuxbox/config/ncam.server",
@@ -440,48 +407,65 @@ class Eagle1(Screen, ConfigListScreen):
         return summary
 
     def restartSoftcam(self):
-        """Terminates and restarts running card sharing emulation components smoothly."""
         import subprocess
+        import glob
         try:
-            init_atv = "/etc/init.d/softcam"
-            init_pli = "/usr/script/softcam.sh"
-
-            use_systemd = False
-            use_atv = False
-            use_pli = False
-
-            if os.path.exists(init_atv):
-                use_atv = True
-            elif os.path.exists(init_pli):
-                use_pli = True
-            else:
-                use_systemd = True
-
             subprocess.call("killall -15 oscam ncam CCcam 2>/dev/null", shell=True)
             subprocess.call("sleep 2", shell=True)
 
-            if use_atv:
+            executed = False
+
+            if os.path.exists("/usr/emu_scripts"):
+                egami_scripts = glob.glob("/usr/emu_scripts/EG_*.sh")
+                if egami_scripts:
+                    subprocess.call(f"{egami_scripts[0]} stop", shell=True)
+                    subprocess.call("sleep 2", shell=True)
+                    subprocess.call(f"{egami_scripts[0]} start", shell=True)
+                    executed = True
+
+            if not executed and os.path.exists("/usr/script/cam"):
+                openspa_scripts = glob.glob("/usr/script/cam/*.sh")
+                if openspa_scripts:
+                    subprocess.call(f"{openspa_scripts[0]} stop", shell=True)
+                    subprocess.call("sleep 2", shell=True)
+                    subprocess.call(f"{openspa_scripts[0]} start", shell=True)
+                    executed = True
+
+            if not executed and os.path.exists("/usr/camscript"):
+                bh_scripts = glob.glob("/usr/camscript/*.sh")
+                if bh_scripts:
+                    subprocess.call(f"{bh_scripts[0]} stop", shell=True)
+                    subprocess.call("sleep 2", shell=True)
+                    subprocess.call(f"{bh_scripts[0]} start", shell=True)
+                    executed = True
+
+            if not executed and os.path.exists("/usr/script"):
+                hdf_pli_scripts = glob.glob("/usr/script/softcam.sh") + \
+                                  glob.glob("/usr/script/oscam*.sh") + \
+                                  glob.glob("/usr/script/ncam*.sh") + \
+                                  glob.glob("/usr/script/CCcam*.sh")
+                if hdf_pli_scripts:
+                    subprocess.call(f"{hdf_pli_scripts[0]} stop", shell=True)
+                    subprocess.call("sleep 2", shell=True)
+                    subprocess.call(f"{hdf_pli_scripts[0]} start", shell=True)
+                    executed = True
+
+            if not executed and os.path.exists("/etc/init.d/softcam"):
                 subprocess.call("/etc/init.d/softcam stop", shell=True)
-            elif use_pli:
-                subprocess.call("/usr/script/softcam.sh stop", shell=True)
-            elif use_systemd:
-                subprocess.call("systemctl stop softcam 2>/dev/null", shell=True)
-
-            subprocess.call("sleep 2", shell=True)
-
-            if use_atv:
+                subprocess.call("sleep 2", shell=True)
                 subprocess.call("/etc/init.d/softcam start", shell=True)
-            elif use_pli:
-                subprocess.call("/usr/script/softcam.sh start", shell=True)
-            elif use_systemd:
-                subprocess.call("systemctl start softcam 2>/dev/null", shell=True)
+                executed = True
+
+            if not executed:
+                subprocess.call("systemctl stop softcam oscam ncam 2>/dev/null", shell=True)
+                subprocess.call("sleep 2", shell=True)
+                subprocess.call("systemctl start softcam oscam ncam 2>/dev/null", shell=True)
 
             return "Softcam service configuration updated successfully."
         except Exception as e:
             return f"Softcam control request failed:\n{str(e)}"
 
     def loadScreenData(self):
-        """Fires safely after layout finishes rendering to paint all fields simultaneously."""
         self.loadBoxIcon()
         try:
             self.system_info.memInfo(self)
@@ -547,7 +531,6 @@ class Eagle1(Screen, ConfigListScreen):
         self.close()
 
     def grid(self):
-        """YELLOW button: Show information about the last backup reader entry inside subscription.txt."""
         readers = self.parse_subscription_file()
         if not readers:
             self.session.open(MessageBox, _("No backup readers found in history file."), MessageBox.TYPE_INFO)
@@ -561,7 +544,6 @@ class Eagle1(Screen, ConfigListScreen):
         self.session.open(MessageBox, msg, MessageBox.TYPE_INFO)
 
     def scriptslist(self):
-        """BLUE button: Restore the last backup reader from subscription.txt directly back to live config setups (Merged Output)."""
         readers = self.parse_subscription_file()
         if not readers:
             self.session.open(MessageBox, _("Restoration canceled: No backup dataset available."), MessageBox.TYPE_ERROR)
@@ -582,10 +564,8 @@ class Eagle1(Screen, ConfigListScreen):
         user_val = last.get("user", "User")
         pass_val = last.get("password", "Pass")
 
-        # Build entry text containing all original extra keys loaded directly from data block
         entry = self.build_entry_string(lbl_val, enable_val, proto, host_val.strip(), port_val.strip(), user_val, pass_val, last)
         
-        # Gather reports without displaying standalone messageboxes
         summary_report = self.write_to_targets(entry, host_val.strip(), port_val.strip(), user_val, pass_val)
         restart_report = self.restartSoftcam()
         
