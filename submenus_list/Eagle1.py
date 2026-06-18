@@ -281,9 +281,12 @@ class Eagle1(Screen, ConfigListScreen):
         self.update_fields()
 
     def keyGreenSave(self):
-        """Executes the data save routine and performs softcam system restarts."""
-        self.add_reader()
-        self.restartSoftcam()
+        """Executes the data save routine and performs softcam system restarts (Merged Output)."""
+        summary_report = self.add_reader()
+        restart_report = self.restartSoftcam()
+        
+        final_message = f"{summary_report}\n---------------------------------------\n{restart_report}"
+        self.session.open(MessageBox, final_message, MessageBox.TYPE_INFO)
 
     def sharing(self):
         """Triggered by the RED button shortcut: Check available target paths."""
@@ -375,7 +378,7 @@ class Eagle1(Screen, ConfigListScreen):
             }
 
         entry = self.build_entry_string(lbl_val, enable_val, proto, self.host.value, self.port.value, self.user.value, self.passw.value, extra)
-        self.write_to_targets(entry, self.host.value, self.port.value, self.user.value, self.passw.value)
+        return self.write_to_targets(entry, self.host.value, self.port.value, self.user.value, self.passw.value)
 
     def write_to_targets(self, entry_str, host, port, user, password):
         """Appends built blocks into config destinations dynamically, validating duplicates."""
@@ -433,7 +436,8 @@ class Eagle1(Screen, ConfigListScreen):
 
         if not summary:
             summary = "No eligible active softcam config files discovered."
-        self.session.open(MessageBox, summary, MessageBox.TYPE_INFO, timeout=6)
+        
+        return summary
 
     def restartSoftcam(self):
         """Terminates and restarts running card sharing emulation components smoothly."""
@@ -472,9 +476,9 @@ class Eagle1(Screen, ConfigListScreen):
             elif use_systemd:
                 subprocess.call("systemctl start softcam 2>/dev/null", shell=True)
 
-            self.session.open(MessageBox, "Softcam service configuration updated successfully.", MessageBox.TYPE_INFO, timeout=3)
+            return "Softcam service configuration updated successfully."
         except Exception as e:
-            self.session.open(MessageBox, f"Softcam control request failed:\n{str(e)}", MessageBox.TYPE_ERROR, timeout=4)
+            return f"Softcam control request failed:\n{str(e)}"
 
     def loadScreenData(self):
         """Fires safely after layout finishes rendering to paint all fields simultaneously."""
@@ -546,7 +550,7 @@ class Eagle1(Screen, ConfigListScreen):
         """YELLOW button: Show information about the last backup reader entry inside subscription.txt."""
         readers = self.parse_subscription_file()
         if not readers:
-            self.session.open(MessageBox, _("No backup readers found in history file."), MessageBox.TYPE_INFO, timeout=5)
+            self.session.open(MessageBox, _("No backup readers found in history file."), MessageBox.TYPE_INFO)
             return
 
         last = readers[-1]
@@ -557,10 +561,10 @@ class Eagle1(Screen, ConfigListScreen):
         self.session.open(MessageBox, msg, MessageBox.TYPE_INFO)
 
     def scriptslist(self):
-        """BLUE button: Restore the last backup reader from subscription.txt directly back to live config setups."""
+        """BLUE button: Restore the last backup reader from subscription.txt directly back to live config setups (Merged Output)."""
         readers = self.parse_subscription_file()
         if not readers:
-            self.session.open(MessageBox, _("Restoration canceled: No backup dataset available."), MessageBox.TYPE_ERROR, timeout=5)
+            self.session.open(MessageBox, _("Restoration canceled: No backup dataset available."), MessageBox.TYPE_ERROR)
             return
 
         last = readers[-1]
@@ -581,9 +585,12 @@ class Eagle1(Screen, ConfigListScreen):
         # Build entry text containing all original extra keys loaded directly from data block
         entry = self.build_entry_string(lbl_val, enable_val, proto, host_val.strip(), port_val.strip(), user_val, pass_val, last)
         
-        # Write to all configurations safely and trigger emulator system reload sequences
-        self.write_to_targets(entry, host_val.strip(), port_val.strip(), user_val, pass_val)
-        self.restartSoftcam()
+        # Gather reports without displaying standalone messageboxes
+        summary_report = self.write_to_targets(entry, host_val.strip(), port_val.strip(), user_val, pass_val)
+        restart_report = self.restartSoftcam()
+        
+        final_message = f"{summary_report}\n---------------------------------------\n{restart_report}"
+        self.session.open(MessageBox, final_message, MessageBox.TYPE_INFO)
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
