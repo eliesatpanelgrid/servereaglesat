@@ -1,0 +1,250 @@
+<screen name="ServerEagleSat"
+    position="center,center"
+    size="1800,980"
+    title="ServerEagleSat"
+    backgroundColor="#000000"
+    flags="wfNoBorder">
+
+    <!-- ================= BACKGROUND ================= -->
+    <ePixmap position="0,0" size="1800,980" zPosition="0"
+        pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/bg.png"
+        transparent="0" alphatest="blend" />
+
+    <!-- ================= BORDERS ================= -->
+    <eLabel position="0,0" size="1800,4" zPosition="6" backgroundColor="#E6BE3A" />
+    <eLabel position="0,800" size="1800,1" zPosition="6" backgroundColor="#E6BE3A" />
+    <eLabel position="0,907" size="4,72" zPosition="6" backgroundColor="#E6BE3A" />
+    <eLabel position="1796,0" size="4,126" zPosition="6" backgroundColor="#E6BE3A" />
+    <eLabel position="1796,907" size="4,72" zPosition="6" backgroundColor="#E6BE3A" />
+    <eLabel position="0,0" size="4,126" zPosition="6" backgroundColor="#E6BE3A" />
+    <eLabel position="0,126" size="1800,1" zPosition="7" backgroundColor="#E6BE3A" />
+    <eLabel position="0,976" size="1800,4" zPosition="6" backgroundColor="#E6BE3A" />
+
+    <!-- ================= TOP HEADER ================= -->
+    <eLabel position="0,0" size="1800,54" zPosition="5" backgroundColor="#000000" />
+
+    <eLabel text="● Welcome to ServerEagleSat – Enjoy the best sharing server for your E2 box."
+        position="90,0" size="1444,54"
+        zPosition="6"
+        font="Bold;32"
+        halign="left" valign="center"
+        foregroundColor="#E6BE3A"
+        transparent="1" />
+
+    <!-- ================= SIDE BARS ================= -->
+    <widget name="left_bar"
+        position="0,127" size="56,708"
+        zPosition="10"
+        font="Regular;26"
+        halign="center" valign="top"
+        foregroundColor="#E6BE3A"
+        transparent="1" />
+
+    <widget name="right_bar"
+        position="1743,133" size="56,708"
+        zPosition="10"
+        font="Regular;26"
+        halign="center" valign="top"
+        foregroundColor="#E6BE3A"
+        transparent="1" />
+
+    <!-- ================= SEPARATORS ================= -->
+    <eLabel position="50,127" size="2,671" zPosition="2" backgroundColor="#E6BE3A" />
+    <eLabel position="1215,127" size="2,671" zPosition="2" backgroundColor="#E6BE3A" />
+
+   <!-- ================= INFO LABELS ================= -->
+
+<!-- RAM -->
+<widget source="MemoryLabel" render="Label" position="1160,200" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="memTotal"    render="Label" position="1330,200" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- SWAP -->
+<widget source="SwapLabel" render="Label" position="1160,241" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="swapTotal" render="Label" position="1330,241" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- FLASH -->
+<widget source="FlashLabel" render="Label" position="1160,281" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="flashTotal" render="Label" position="1330,281" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- IMAGE -->
+<widget source="ImageLabel" render="Label" position="1160,362" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="Image"      render="Label" position="1330,362" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- PYTHON -->
+<widget source="pythonLabel" render="Label" position="1160,403" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="python"      render="Label" position="1330,403" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- UPDATE -->
+<widget source="EnigmaVersionLabel" render="Label" position="1160,443" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="EnigmaVersion"      render="Label" position="1330,443" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- DRIVER (MOVED UP) -->
+<widget source="driverLabel" render="Label" position="1160,524" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="driver"      render="Label" position="1330,524" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- KERNEL (MOVED UP) -->
+<widget source="KernelLabel" render="Label" position="1160,565" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="Kernel"      render="Label" position="1330,565" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- GSTREAMER -->
+<widget source="gstreamerLabel" render="Label" position="1160,606" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="gstreamer"      render="Label" position="1330,606" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- HARDWARE -->
+<widget source="HardwareLabel" render="Label" position="1160,686" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="Hardware"      render="Label" position="1330,686" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- PROCESSOR -->
+<widget source="CPULabel" render="Label" position="1160,726" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+<widget source="CPU"      render="Label" position="1330,726" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+
+<!-- IP ADDRESS -->
+<widget source="ipLabel" render="Label"
+    position="168,60" zPosition="6"
+    size="150,32"
+    font="Regular;24"
+    halign="right" valign="center"
+    foregroundColor="#E6BE3A"
+    transparent="1" />
+
+<widget source="ipInfo" render="Label"
+    position="328,60" zPosition="6"
+    size="309,32"
+    font="Regular;24"
+    halign="left" valign="center"
+    foregroundColor="#E6BE3A"
+    transparent="1" />
+
+<!-- INTERNET -->
+<widget source="internetLabel" render="Label"
+    position="797,60" zPosition="6"
+    size="150,32"
+    font="Regular;24"
+    halign="right" valign="center"
+    foregroundColor="#E6BE3A"
+    transparent="1" />
+
+<widget source="internet" render="Label"
+    position="957,60" zPosition="6"
+    size="309,32"
+    font="Regular;24"
+    halign="left" valign="center"
+    foregroundColor="#E6BE3A"
+    transparent="1" />
+
+<!-- ================= TIME / DATE ================= -->
+<widget source="global.CurrentTime" render="Label"
+    position="1266,54" size="469,32"
+    zPosition="12"
+    font="Regular;24"
+    halign="center"
+    foregroundColor="#E6BE3A"
+    transparent="1">
+    <convert type="ClockToText">Format %A %d %B</convert>
+</widget>
+
+<widget source="global.CurrentTime" render="Label"
+    position="1266,86" size="469,32"
+    zPosition="12"
+    font="Regular;24"
+    halign="center"
+    foregroundColor="#E6BE3A"
+    transparent="1">
+    <convert type="ClockToText">Format %H:%M:%S</convert>
+</widget>
+
+<!-- ================= PANEL ================= -->
+<eLabel position="56,127" size="525,41" zPosition="3" backgroundColor="#000000" />
+<eLabel text="Main Menus"
+    position="370,127" size="525,51"
+    zPosition="4"
+    font="Bold;32"
+    halign="center" valign="center"
+    foregroundColor="#E6BE3A"
+    backgroundColor="#000000" />
+
+<!-- MENU LIST -->
+<widget source="menu"
+    render="Listbox"
+    position="52,200"
+    size="1161,600"
+    backgroundColorSelected="#2A2A2A"
+    listOrientation="vertical"
+    itemHeight="60"
+    scrollbarMode="showOnDemand"
+    transparent="1"
+    noWrap="0">
+
+<convert type="TemplatedMultiContent">
+{
+"template": [
+
+    MultiContentEntryPixmapAlphaTest(
+        pos = (10, 5),
+        size = (44, 44),
+        png = 3
+    ),
+
+    MultiContentEntryText(
+        pos = (70, 17),
+        size = (430, 40),
+        font = 0,
+        flags = RT_HALIGN_LEFT,
+        text = 0
+    ),
+
+    MultiContentEntryText(
+        pos = (520, 10),
+        size = (620, 40),
+        font = 1,
+        flags = RT_HALIGN_LEFT,
+        text = 2
+    )
+
+],
+"fonts": [
+    gFont("Console", 30),
+    gFont("Regular", 24)
+],
+"itemHeight": 60
+}
+</convert>
+</widget>
+
+<!-- ================= LOGO ================= -->
+<ePixmap position="40,820" size="150,125" zPosition="8"
+    pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/logo.png"
+    transparent="1" alphatest="blend" />
+
+<eLabel text="Contact Abou Omar : +201011058982"
+    position="200,820"
+    size="1165,68"
+    zPosition="5"
+    font="Bold;30"
+    halign="left"
+    valign="center"
+    foregroundColor="#E6BE3A"
+    backgroundColor="#000000"
+    transparent="0" />
+
+<eLabel text="Or                  ElieSat : +96170787872"
+    position="200,870"
+    size="1165,68"
+    zPosition="5"
+    font="Bold;30"
+    halign="left"
+    valign="center"
+    foregroundColor="#E6BE3A"
+    backgroundColor="#000000"
+    transparent="0" />
+
+<widget name="boxicon"
+    position="1230,808"
+    size="1520,380"
+    zPosition="6"
+    alphatest="blend"
+    transparent="1"
+    halign="center"
+    valign="center" />
+
+</screen>
