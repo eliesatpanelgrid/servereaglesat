@@ -121,8 +121,8 @@ class Eagle1(Screen, ConfigListScreen):
                 "back": self.exit,
                 "green": self.keyGreenSave,     # GREEN button saves changes
                 "red": self.sharing,            # RED button runs target file check
-                "yellow": self.grid,
-                "blue": self.scriptslist,
+                "yellow": self.grid,            # YELLOW shows last backup reader
+                "blue": self.scriptslist,       # BLUE restores last reader backup to systems
                 "info": self.infoKey,
             }
         )
@@ -154,11 +154,11 @@ class Eagle1(Screen, ConfigListScreen):
 
         self.onLayoutFinish.append(self.loadScreenData)
 
-    def load_last_reader_to_config(self):
-        """Reads local subscription configuration text history cleanly into state variables."""
+    def parse_subscription_file(self):
+        """Helper to safely read subscription.txt and return a list of reader dictionaries."""
         file_path = os.path.join(self.panel_dir, "subscription.txt")
         if not os.path.exists(file_path):
-            return
+            return []
         try:
             with open(file_path, "r") as f:
                 content = f.read()
@@ -173,10 +173,17 @@ class Eagle1(Screen, ConfigListScreen):
                         k, v = line.split("=", 1)
                         info[k.strip()] = v.strip()
                 readers.append(info)
-            
-            if not readers:
-                return
-            
+            return readers
+        except Exception as e:
+            print("[ServerEagleSat] Error parsing subscription historical logs:", e)
+            return []
+
+    def load_last_reader_to_config(self):
+        """Reads local subscription configuration text history cleanly into state variables."""
+        readers = self.parse_subscription_file()
+        if not readers:
+            return
+        try:
             last = readers[-1]
             if "protocol" in last:
                 p_val = last["protocol"].lower()
@@ -323,43 +330,55 @@ class Eagle1(Screen, ConfigListScreen):
         # Fire standard scrolling information overlay alert cleanly
         self.session.open(MessageBox, message, MessageBox.TYPE_INFO)
 
+    def build_entry_string(self, label, enable, protocol, host, port, user, password, extra_dict=None):
+        """Unified string template writer for generation optimization."""
+        entry = (
+            "[reader]\n"
+            f"label = {label}\n"
+            f"enable = {enable}\n"
+            f"protocol = {protocol}\n"
+            f"device = {host},{port}\n"
+            f"user = {user}\n"
+            f"password = {password}\n"
+        )
+        if extra_dict:
+            for k, v in extra_dict.items():
+                if k not in ["label", "enable", "protocol", "device", "user", "password"]:
+                    entry += f"{k} = {v}\n"
+        entry = entry.strip() + "\n\n"
+        return entry
+
     def add_reader(self):
-        """Appends the formatted configuration entry across your active server file paths."""
+        """Appends the formatted screen configuration entry across your active server file paths."""
         proto = self.protocol.value.lower()
         lbl_val = self.label_custom.value if self.label_choice.value == "Custom" else self.label_choice.value
         enable_val = "1" if self.status.value == "enabled" else "0"
 
-        entry = (
-            "[reader]\n"
-            f"label = {lbl_val}\n"
-            f"enable = {enable_val}\n"
-            f"protocol = {proto}\n"
-            f"device = {self.host.value},{self.port.value}\n"
-            f"user = {self.user.value}\n"
-            f"password = {self.passw.value}\n"
-        )
-
+        extra = {}
         if proto == "cccam":
-            entry += (
-                f"inactivitytimeout = {self.inactivitytimeout.value}\n"
-                f"group = {self.group.value}\n"
-                f"disablecrccws = {self.disablecrccws.value}\n"
-                f"cccversion = {self.cccamversion.value}\n"
-                f"cccwantemu = {self.cccwantemu.value}\n"
-                f"ccckeepalive = {self.ccckeepalive.value}\n"
-                f"audisabled = {self.audisabled.value}\n"
-            )
+            extra = {
+                "inactivitytimeout": self.inactivitytimeout.value,
+                "group": self.group.value,
+                "disablecrccws": self.disablecrccws.value,
+                "cccversion": self.cccamversion.value,
+                "cccwantemu": self.cccwantemu.value,
+                "ccckeepalive": self.ccckeepalive.value,
+                "audisabled": self.audisabled.value
+            }
         else:
-            entry += (
-                f"key = {self.key.value}\n"
-                f"disableserverfilter = {self.disableserverfilter.value}\n"
-                f"connectoninit = {self.connectoninit.value}\n"
-                f"group = {self.group.value}\n"
-                f"disablecrccws = {self.disablecrccws.value}\n"
-            )
+            extra = {
+                "key": self.key.value,
+                "disableserverfilter": self.disableserverfilter.value,
+                "connectoninit": self.connectoninit.value,
+                "group": self.group.value,
+                "disablecrccws": self.disablecrccws.value
+            }
 
-        entry = entry.strip() + "\n\n"
+        entry = self.build_entry_string(lbl_val, enable_val, proto, self.host.value, self.port.value, self.user.value, self.passw.value, extra)
+        self.write_to_targets(entry, self.host.value, self.port.value, self.user.value, self.passw.value)
 
+    def write_to_targets(self, entry_str, host, port, user, password):
+        """Appends built blocks into config destinations dynamically, validating duplicates."""
         targets = [
             os.path.join(self.panel_dir, "subscription.txt"),
             "/etc/tuxbox/config/ncam.server",
@@ -390,9 +409,9 @@ class Eagle1(Screen, ConfigListScreen):
                 with open(path, "r") as fr:
                     content = fr.read()
                 blocks = content.split("[reader]")
-                match_str = f"{self.host.value},{self.port.value}"
+                match_str = f"{host},{port}"
                 for b in blocks:
-                    if match_str in b and self.user.value in b and self.passw.value in b:
+                    if match_str in b and user in b and password in b:
                         duplicated = True
                         break
             except:
@@ -407,7 +426,7 @@ class Eagle1(Screen, ConfigListScreen):
                             curr = fr.read()
                         if not curr.endswith("\n\n") and len(curr.strip()) > 0:
                             fw.write("\n")
-                        fw.write(entry)
+                        fw.write(entry_str)
                     summary += f"Successfully written: {path}\n"
                 except Exception as ex:
                     summary += f"Write failure {path}: {str(ex)}\n"
@@ -523,8 +542,48 @@ class Eagle1(Screen, ConfigListScreen):
     def exit(self):
         self.close()
 
-    def grid(self): pass
-    def scriptslist(self): pass
+    def grid(self):
+        """YELLOW button: Show information about the last backup reader entry inside subscription.txt."""
+        readers = self.parse_subscription_file()
+        if not readers:
+            self.session.open(MessageBox, _("No backup readers found in history file."), MessageBox.TYPE_INFO, timeout=5)
+            return
+
+        last = readers[-1]
+        msg = _("--- Last Saved Reader Backup Data ---\n\n")
+        for key, value in last.items():
+            msg += f"• {key.capitalize()}: {value}\n"
+        
+        self.session.open(MessageBox, msg, MessageBox.TYPE_INFO)
+
+    def scriptslist(self):
+        """BLUE button: Restore the last backup reader from subscription.txt directly back to live config setups."""
+        readers = self.parse_subscription_file()
+        if not readers:
+            self.session.open(MessageBox, _("Restoration canceled: No backup dataset available."), MessageBox.TYPE_ERROR, timeout=5)
+            return
+
+        last = readers[-1]
+        
+        lbl_val = last.get("label", "Backup_Reader")
+        enable_val = last.get("enable", "1")
+        proto = last.get("protocol", "cccam").lower()
+        
+        device_str = last.get("device", "localhost,22222")
+        if "," in device_str:
+            host_val, port_val = device_str.split(",", 1)
+        else:
+            host_val, port_val = device_str, "22222"
+            
+        user_val = last.get("user", "User")
+        pass_val = last.get("password", "Pass")
+
+        # Build entry text containing all original extra keys loaded directly from data block
+        entry = self.build_entry_string(lbl_val, enable_val, proto, host_val.strip(), port_val.strip(), user_val, pass_val, last)
+        
+        # Write to all configurations safely and trigger emulator system reload sequences
+        self.write_to_targets(entry, host_val.strip(), port_val.strip(), user_val, pass_val)
+        self.restartSoftcam()
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
