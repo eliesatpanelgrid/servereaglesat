@@ -119,8 +119,8 @@ class Eagle1(Screen, ConfigListScreen):
                 "ok": self.keyOK,               # Interact with individual fields
                 "cancel": self.exit,
                 "back": self.exit,
-                "green": self.keyGreenSave,     # GREEN button takes over the old OK job!
-                "red": self.iptv,
+                "green": self.keyGreenSave,     # GREEN button saves changes
+                "red": self.sharing,            # RED button runs target file check
                 "yellow": self.grid,
                 "blue": self.scriptslist,
                 "info": self.infoKey,
@@ -278,6 +278,51 @@ class Eagle1(Screen, ConfigListScreen):
         self.add_reader()
         self.restartSoftcam()
 
+    def sharing(self):
+        """Triggered by the RED button shortcut: Check available target paths."""
+        self.checkAvailableSharingConfigs()
+
+    def checkAvailableSharingConfigs(self):
+        """Scans filesystem locations and prints active/missing configuration targets to the screen."""
+        targets = [
+            os.path.join(self.panel_dir, "subscription.txt"),
+            "/etc/tuxbox/config/ncam.server",
+            "/etc/tuxbox/config/ncam-icam/ncam.server",
+            "/etc/tuxbox/config/oscam.server",
+            "/etc/tuxbox/config/oscam/oscam.server",
+            "/etc/tuxbox/config/oscam-emu/oscam.server",
+            "/etc/tuxbox/config/oscam-master/oscam.server",
+            "/etc/tuxbox/config/oscam-smod/oscam.server",
+            "/etc/tuxbox/config/oscamicamnew/oscam.server",
+            "/etc/tuxbox/config/oscamicamall/oscam.server",
+            "/etc/tuxbox/config/oscam-icam/oscam.server"
+        ]
+
+        found_files = []
+        missing_files = []
+
+        for path in targets:
+            if os.path.exists(path):
+                found_files.append(path)
+            else:
+                missing_files.append(path)
+
+        # Construct diagnostic readout presentation text
+        message = _("--- Active Sharing Config Files Found ---\n")
+        if found_files:
+            message += "\n".join([f"✔ {p}" for p in found_files])
+        else:
+            message += _("No active reader profiles discovered.\n")
+
+        message += _("\n\n--- Missing Config Locations ---\n")
+        if missing_files:
+            message += "\n".join([f"❌ {p}" for p in missing_files])
+        else:
+            message += _("None.")
+
+        # Fire standard scrolling information overlay alert cleanly
+        self.session.open(MessageBox, message, MessageBox.TYPE_INFO)
+
     def add_reader(self):
         """Appends the formatted configuration entry across your active server file paths."""
         proto = self.protocol.value.lower()
@@ -317,10 +362,15 @@ class Eagle1(Screen, ConfigListScreen):
 
         targets = [
             os.path.join(self.panel_dir, "subscription.txt"),
-            "/etc/tuxbox/config/oscam.server",
             "/etc/tuxbox/config/ncam.server",
-            "/etc/tuxbox/config/oscamicamall/oscam.server",
             "/etc/tuxbox/config/ncam-icam/ncam.server",
+            "/etc/tuxbox/config/oscam.server",
+            "/etc/tuxbox/config/oscam/oscam.server",
+            "/etc/tuxbox/config/oscam-emu/oscam.server",
+            "/etc/tuxbox/config/oscam-master/oscam.server",
+            "/etc/tuxbox/config/oscam-smod/oscam.server",
+            "/etc/tuxbox/config/oscamicamnew/oscam.server",
+            "/etc/tuxbox/config/oscamicamall/oscam.server",
             "/etc/tuxbox/config/oscam-icam/oscam.server"
         ]
 
@@ -473,7 +523,6 @@ class Eagle1(Screen, ConfigListScreen):
     def exit(self):
         self.close()
 
-    def iptv(self): pass
     def grid(self): pass
     def scriptslist(self): pass
 
