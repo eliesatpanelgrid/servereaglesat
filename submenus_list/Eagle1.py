@@ -62,14 +62,17 @@ class Eagle1(Screen, ConfigListScreen):
 
         self.label_choice = ConfigSelection(default="ServerEagle", choices=[("ServerEagle", "ServerEagle"), ("ElieSat", "ElieSat"), ("Custom", "Custom")])
         self.label_custom = ConfigText(default="server_name", fixed_size=False)
-        self.label_custom.useKeyboard = False
+        self.label_custom.useKeyboard = True
         
         self.status = ConfigSelection(default="enabled", choices=[("enabled", "Enabled"), ("disabled", "Disabled")])
         self.protocol = ConfigSelection(default="cccam", choices=[("cccam", "CCcam"), ("newcamd", "NewCamd"), ("mgcamd", "MgCamd")])
         self.host = ConfigText(default="tv8k.cc", fixed_size=False)
+        self.host.useKeyboard = True
         self.port = ConfigInteger(default=22222, limits=(1, 99999))
         self.user = ConfigText(default="User", fixed_size=False)
+        self.user.useKeyboard = True
         self.passw = ConfigText(default="Pass", fixed_size=False)
+        self.passw.useKeyboard = True
         self.inactivitytimeout = ConfigInteger(default=30, limits=(1, 99))
         self.group = ConfigInteger(default=1, limits=(0, 99))
         
@@ -80,11 +83,9 @@ class Eagle1(Screen, ConfigListScreen):
         self.audisabled = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
         
         self.key = ConfigText(default="0102030405060708091011121314", fixed_size=False)
+        self.key.useKeyboard = True
         self.disableserverfilter = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
         self.connectoninit = ConfigSelection(default="1", choices=[("0", "No"), ("1", "Yes")])
-
-        for element in [self.host, self.user, self.passw, self.cccamversion, self.key, self.label_custom]:
-            element.useKeyboard = False
 
         self.load_last_reader_to_config()
 
@@ -268,10 +269,52 @@ class Eagle1(Screen, ConfigListScreen):
             'fi; fi'
         )
 
+    def is_label_duplicated(self, target_label):
+        """Scans active configuration files to check if the exact label already exists."""
+        targets = [
+            os.path.join(self.panel_dir, "subscription.txt"),
+            "/etc/tuxbox/config/ncam.server",
+            "/etc/tuxbox/config/ncam-icam/ncam.server",
+            "/etc/tuxbox/config/oscam.server",
+            "/etc/tuxbox/config/oscam/oscam.server",
+            "/etc/tuxbox/config/oscam-emu/oscam.server",
+            "/etc/tuxbox/config/oscam-master/oscam.server",
+            "/etc/tuxbox/config/oscam-smod/oscam.server",
+            "/etc/tuxbox/config/oscamicamnew/oscam.server",
+            "/etc/tuxbox/config/oscamicamall/oscam.server",
+            "/etc/tuxbox/config/oscam-icam/oscam.server"
+        ]
+        
+        for path in targets:
+            if os.path.exists(path):
+                try:
+                    with open(path, "r") as f:
+                        content = f.read()
+                    blocks = content.split("[reader]")
+                    for block in blocks:
+                        if not block.strip():
+                            continue
+                        for line in block.splitlines():
+                            if line.strip().startswith("label"):
+                                parts = line.split("=", 1)
+                                if len(parts) == 2 and parts[1].strip() == target_label:
+                                    return True
+                except Exception as e:
+                    print(f"[ServerEagleSat] Label validation parsing failure on {path}:", e)
+        return False
+
     def keyGreenSave(self):
+        lbl_val = self.label_custom.value if self.label_choice.value == "Custom" else self.label_choice.value
+        
+        # Validation: Stop processing if the label is already taken
+        if self.is_label_duplicated(lbl_val):
+            warning_msg = _(f"The Reader label '{lbl_val}' already exists!\nPlease change the label name and try again.")
+            self.session.open(MessageBox, warning_msg, MessageBox.TYPE_ERROR)
+            return
+
         summary_report = self.add_reader()
         
-        # Trigger softcam cycle using the new centralized helper function
+        # Trigger softcam cycle using the centralized helper function
         success, restart_report = restart_softcam_services(custom_egami_cmd=self.get_egami_rules())
         
         final_message = f"{summary_report}\n---------------------------------------\n{restart_report}"
@@ -506,8 +549,14 @@ class Eagle1(Screen, ConfigListScreen):
             return
 
         last = readers[-1]
-        
         lbl_val = last.get("label", "Backup_Reader")
+        
+        # Validation: Stop backup process if the restored label name matches an existing one
+        if self.is_label_duplicated(lbl_val):
+            warning_msg = _(f"The backup reader label '{lbl_val}' already exists!\nPlease change the label name or delete the previous entry to restore.")
+            self.session.open(MessageBox, warning_msg, MessageBox.TYPE_ERROR)
+            return
+
         enable_val = last.get("enable", "1")
         proto = last.get("protocol", "cccam").lower()
         
@@ -536,4 +585,5 @@ class Eagle1(Screen, ConfigListScreen):
         ])
         
     def keyOK(self):
-        pass
+        # Allow standard Enigma2 configuration lists to invoke virtual keyboard setups
+        ConfigListScreen.keyOK(self)
