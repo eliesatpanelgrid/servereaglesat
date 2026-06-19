@@ -27,7 +27,7 @@
     <widget source="swapTotal" render="Label" position="1330,241" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
     <widget source="FlashLabel" render="Label" position="1160,281" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="flashTotal" render="Label" position="1330,281" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+    <widget source="flashTotal" render="Label" position="1330,281" size="400,70" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
     <widget source="ImageLabel" render="Label" position="1160,362" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
     <widget source="Image"      render="Label" position="1330,362" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
@@ -83,6 +83,6 @@
     <eLabel text="Show Backup" position="753,830" size="220,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="963,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_blue.png" transparent="1" alphatest="blend" />
-    <eLabel text="Restore Backup" position="1013,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="Restore" position="1013,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
 </screen>

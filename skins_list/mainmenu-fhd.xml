@@ -64,7 +64,7 @@
 
 <!-- FLASH -->
 <widget source="FlashLabel" render="Label" position="1160,281" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-<widget source="flashTotal" render="Label" position="1330,281" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
+<widget source="flashTotal" render="Label" position="1330,281" size="400,70" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
 <!-- IMAGE -->
 <widget source="ImageLabel" render="Label" position="1160,362" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
