@@ -1,36 +1,207 @@
 # -*- coding: utf-8 -*-
 
 from Screens.Screen import Screen
-from enigma import getDesktop
+from Screens.MessageBox import MessageBox
+from enigma import getDesktop, gFont, eTimer, RT_HALIGN_LEFT
+from Tools.LoadPixmap import LoadPixmap
+from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
 
-# Import your direct hardware helper class
+# Import your core hardware info helpers
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
-# Import your standalone network helpers
 from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
 
 import os
-from threading import Timer
-
+import re
+import base64
+import urllib.request
+import urllib.parse
+import xml.etree.ElementTree as ET
 from Components.ActionMap import NumberActionMap
 from Components.Sources.StaticText import StaticText
 from Components.Sources.List import List
 from Components.Label import Label
 from Components.Pixmap import Pixmap
 
-from Tools.LoadPixmap import LoadPixmap
-from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
-
 from Plugins.Extensions.ServerEagleSat.__init__ import Version, Panel
 
 
+# =========================================================================
+#                    AUTONOMOUS OSCAM CONFIG PARSERS
+# =========================================================================
+def find_oscam_dir():
+    """Scans all known Enigma2 image default directories for OSCam files."""
+    possible_paths = [
+        "/etc/tuxbox/config/",
+        "/etc/tuxbox/config/oscam/",
+        "/var/tuxbox/config/",
+        "/usr/keys/",
+        "/etc/"
+    ]
+    for path in possible_paths:
+        if os.path.exists(os.path.join(path, "oscam.server")):
+            return path
+    return "/etc/tuxbox/config/"
+
+def read_oscam_conf():
+    """Parses oscam.conf to extract WebIF port and credentials."""
+    conf = {"ip": "127.0.0.1", "port": "8888", "user": "", "pwd": ""}
+    conf_path = os.path.join(find_oscam_dir(), "oscam.conf")
+    if not os.path.exists(conf_path):
+        return conf
+    
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            in_webif = False
+            for line in f:
+                line = line.strip()
+                if line.startswith("[") and line.endswith("]"):
+                    in_webif = (line.lower() == "[webif]")
+                    continue
+                if in_webif and "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip().lower()
+                    val = val.split(";")[0].split("#")[0].strip() # Strip comments
+                    if key == "httpport":
+                        conf["port"] = val
+                    elif key == "httpuser":
+                        conf["user"] = val
+                    elif key == "httppwd":
+                        conf["pwd"] = val
+    except Exception as e:
+        print("[ServerEagleSat] Error parsing oscam.conf:", e)
+    return conf
+
+def get_all_readers_from_config():
+    """Parses local oscam.server file to pull all defined readers names."""
+    readers = []
+    server_path = os.path.join(find_oscam_dir(), "oscam.server")
+    if not os.path.exists(server_path):
+        return readers
+        
+    try:
+        with open(server_path, "r", encoding="utf-8", errors="ignore") as f:
+            current_label = None
+            for line in f:
+                line = line.strip()
+                if line.lower() == "[reader]":
+                    current_label = None
+                elif "=" in line:
+                    key, val = line.split("=", 1)
+                    if key.strip().lower() == "label":
+                        current_label = val.split(";")[0].split("#")[0].strip()
+                        if current_label and current_label not in readers:
+                            readers.append(current_label)
+    except Exception as e:
+        print("[ServerEagleSat] Error parsing oscam.server:", e)
+    return readers
+
+def get_oscam_readers(ip, port, user, pwd):
+    """
+    Fetches real-time runtime readers states from the active OSCam WebIF.
+    Uses a clean XML parse layout matching the pattern structure of your reference sample.
+    """
+    active_readers = []
+    
+    auth_header = None
+    if user and pwd:
+        credentials = f"{user}:{pwd}"
+        encoded = base64.b64encode(credentials.encode("utf-8")).decode("utf-8").strip()
+        auth_header = "Basic " + encoded
+
+    url_xml = f"http://{ip}:{port}/oscamapi.html?part=status"
+    try:
+        req_xml = urllib.request.Request(url_xml, method="GET")
+        if auth_header:
+            req_xml.add_header("Authorization", auth_header)
+            
+        with urllib.request.urlopen(req_xml, timeout=5) as resp:
+            xml_data = resp.read().decode("utf-8", errors="ignore")
+            root = ET.fromstring(xml_data)
+            
+            # Fetch both physical local readers (r) and proxy network readers (p)
+            for client in root.findall(".//client[@type='r']") + root.findall(".//client[@type='p']"):
+                name = client.get("name", "Unknown").strip()
+                protocol = client.get("protocol", "-").strip()
+                au = client.get("au", "-").strip()
+                
+                connection = client.find("connection")
+                status = connection.text.strip() if connection is not None and connection.text else "Unknown"
+                
+                times = client.find("times")
+                idle = times.get("idle", "-") if times is not None else "-"
+                
+                # Strip web display suffixes safely like "MyReader (p)" -> "MyReader"
+                clean_name = name.split(" (")[0].strip()
+                
+                active_readers.append({
+                    "name": clean_name,
+                    "protocol": protocol,
+                    "au": au,
+                    "idle": idle,
+                    "status": status
+                })
+            if active_readers:
+                return active_readers
+    except Exception as e:
+        print("[ServerEagleSat] XML Engine Error, using regex fallbacks:", e)
+
+    # -----------------------------------------------------------------
+    # REGEX FALLBACK: Runs if ElementTree parsing fails completely
+    # -----------------------------------------------------------------
+    try:
+        url_html = f"http://{ip}:{port}/status.html"
+        req_html = urllib.request.Request(url_html, method="GET")
+        if auth_header:
+            req_html.add_header("Authorization", auth_header)
+            
+        with urllib.request.urlopen(req_html, timeout=4) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+            rows = re.findall(r'<tr[^>]*class=["\'](?:r|p|readers)["\'][^>]*>.*?</tr>', html, re.DOTALL | re.IGNORECASE)
+            
+            for row in rows:
+                columns = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
+                if not columns or len(columns) < 5:
+                    continue
+                
+                name_match = re.search(r'label=[^>]*>([^<]+)</a>', columns[0], re.IGNORECASE)
+                if not name_match:
+                    name_match = re.search(r'>([^<]+)</a>', columns[0], re.IGNORECASE)
+                
+                name = name_match.group(1).strip() if name_match else re.sub(r'<[^>]*>', '', columns[0]).strip()
+                clean_name = name.split(" (")[0].strip()
+                
+                if not clean_name or any(x in clean_name.lower() for x in ("emulator", "anonymous", "all readers", "totals")):
+                    continue
+                    
+                protocol = re.sub(r'<[^>]*>', '', columns[1]).strip()
+                au = re.sub(r'<[^>]*>', '', columns[2]).strip()
+                idle = re.sub(r'<[^>]*>', '', columns[3]).strip()
+                status = re.sub(r'<[^>]*>', '', columns[4]).strip()
+                
+                if "<a" in columns[4]:
+                    status_link = re.search(r'>([^<]+)</a>', columns[4], re.IGNORECASE)
+                    if status_link:
+                        status = status_link.group(1).strip()
+
+                active_readers.append({
+                    "name": clean_name, "protocol": protocol, "au": au, "idle": idle, "status": status
+                })
+    except Exception as e:
+        print("[ServerEagleSat] Local parsing block error fallback stack:", e)
+
+    return active_readers
+
+
+# =========================================================================
+#                          MAIN EAGLE2 SCREEN CLASS
+# =========================================================================
 class Eagle2(Screen):
 
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
 
-        # Read layout template
         try:
             skin_file = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/skins_list/eagle2-fhd.xml")
             with open(skin_file, "r") as f:
@@ -39,43 +210,34 @@ class Eagle2(Screen):
             print("[ServerEagleSat Submenu] Critical Error Reading Skin File:", e)
             self.skin = "<screen name='ServerEagleSat' position='center,center' size='1800,980' backgroundColor='#000000'/>"
 
-        self.setTitle(_("ServerEagleSat - Add Reader"))
+        self.setTitle(_("ServerEagleSat - OSCam Status Panel"))
         self.indexpos = None
         
-        # Initialize your core info manager for hardware specifications
         self.system_info = SystemInfo()
 
-        # ACTIONS
+        # REMOTE SHORTCUT HANDLERS MAPPINGS
         self["NumberActions"] = NumberActionMap(["NumberActions"], {'0': self.keyNumberGlobal})
         self["shortcuts"] = NumberActionMap(
             ["ShortcutActions", "WizardActions", "ColorActions", "HotkeyActions"],
             {
-                "ok": self.keyOK,
+                "ok": self.toggleReaderAction,
                 "cancel": self.exit,
                 "back": self.exit,
-                "red": self.iptv,
                 "info": self.infoKey,
-                "green": self.cccam,
-                "yellow": self.grid,
-                "blue": self.scriptslist,
+                "blue": self.toggleReaderAction,
             }
         )
 
-        # UI BARS
+        # DECORATIVE FRAME LABELS
         self["left_bar"] = Label("\n".join(list("Version " + Version)))
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
+        self["key_blue"] = Label("Toggle Reader")
 
-        # COLOR KEYS LABELS
-        self["key_red"] = Label("Iptv Adder")
-        self["key_green"] = Label("Cccam Adder")
-        self["key_yellow"] = Label("News")
-        self["key_blue"] = Label("Scripts")
-
-        # MENU
+        # RENDER LIST MANAGEMENT COMPONENT
         self.list = []
         self["menu"] = List(self.list)
 
-        # INITIALIZE LABELS
+        # TEXT BOX SPECIFICATIONS LABELS MAPPINGS
         labels = ["MemoryLabel", "SwapLabel", "FlashLabel", "gstreamerLabel",
                   "pythonLabel", "CPULabel", "ipLabel", "macLabel",
                   "HardwareLabel", "ImageLabel", "KernelLabel",
@@ -85,7 +247,7 @@ class Eagle2(Screen):
         for l, t in zip(labels, text):
             self[l] = StaticText(t)
 
-        # INITIALIZE VALUES
+        # VALUES DYNAMIC STORAGE DEFINITIONS
         values = ["memTotal", "swapTotal", "flashTotal", "device", "gstreamer", "python",
                   "Hardware", "Image", "CPU", "Kernel", "ipInfo", "macInfo",
                   "EnigmaVersion", "driver", "internet"]
@@ -96,15 +258,17 @@ class Eagle2(Screen):
         self["Panel"] = Label(_(Panel))
         self["boxicon"] = Pixmap()
 
-        # HOOKS NATIVE DELIVERY SYSTEM
+        # Automated Background loop (Runs every 10 seconds)
+        self.refresh_timer = eTimer()
+        self.refresh_timer.callback.append(self.refreshOscamStatus)
+
         self.onLayoutFinish.append(self.loadScreenData)
 
     def loadScreenData(self):
-        """Fires safely after layout finishes rendering to paint all fields simultaneously."""
-        # 1. Render STB Graphic Icon
+        """Pre-populates basic infrastructure telemetry strings."""
         self.loadBoxIcon()
 
-        # 2. POPULATE HARDWARE METRICS (Restores RAM, Swap, Flash, Gst, Python, Image, etc.)
+        # Update Hardware Information Fields
         try:
             self.system_info.memInfo(self)
             self.system_info.FlashMem(self)
@@ -116,13 +280,11 @@ class Eagle2(Screen):
         except Exception as e:
             print("[ServerEagleSat Submenu] Hardware Specifications Load Failure:", e)
 
-        # 3. DIRECT COLD EXECUTION FOR NETWORK VALUES (Maintains working network headers)
+        # Update Network Information Fields
         try:
-            # Render local system IP string
             local_ip = get_local_ip()
             self["ipInfo"].setText(str(local_ip))
 
-            # Render outside internet authentication string
             net_status = check_internet()
             if net_status == "Online":
                 self["internet"].setText(_("Connected"))
@@ -130,6 +292,115 @@ class Eagle2(Screen):
                 self["internet"].setText(_("Disconnected"))
         except Exception as e:
             print("[ServerEagleSat Submenu] Network Target Mapping Failure:", e)
+
+        # Fire initial read cycle data populate and enable loops
+        self.refreshOscamStatus()
+        self.refresh_timer.start(10000, False)
+
+    def refreshOscamStatus(self):
+        """Assembles data arrays to populate the target visual content template rows."""
+        self.list = []
+        try:
+            conf = read_oscam_conf()
+            active_readers = get_oscam_readers(
+                ip=conf["ip"],
+                port=conf["port"],
+                user=conf["user"],
+                pwd=conf["pwd"]
+            )
+            
+            # Map using lower-case normalized keys to avoid string match dropouts
+            active_map = {r['name'].lower(): r for r in active_readers}
+            all_readers = get_all_readers_from_config()
+
+            if not all_readers:
+                self.list.append((_("No Readers Found"), "", _("Please check local config files inside /etc/tuxbox/"), None))
+            else:
+                for rname in all_readers:
+                    rname_lower = rname.lower()
+                    if rname_lower in active_map:
+                        reader = active_map[rname_lower]
+                        status = reader.get('status', 'OFF')
+                        au = reader.get('au', '-')
+                        idle = reader.get('idle', '-')
+                        protocol = reader.get('protocol', '-')
+                    else:
+                        status = "OFF"
+                        au = idle = protocol = "-"
+
+                    status_lower = status.lower().strip()
+                    
+                    # ---------------------------------------------------------
+                    # BULLETPROOF SUBSTRING STATUS MATCHING ENGINE
+                    # ---------------------------------------------------------
+                    if not status_lower or any(x in status_lower for x in ("off", "disable", "down", "stopped", "stopped")):
+                        icon_name = "red.png"
+                    elif any(x in status_lower for x in ("connected", "cardok", "ok", "active")) or (":" in status_lower and ("ok" in status_lower or "connected" in status_lower or len(status_lower) > 7)):
+                        # If string contains an IP socket match (like 192.168.1.10:12000) and isn't errored, it's green
+                        icon_name = "green.png"
+                    elif any(x in status_lower for x in ("needinit", "unknown", "init", "error")):
+                        icon_name = "yellow.png"
+                    else:
+                        # Fallback for complex CCcam proxy addresses that are live
+                        if ":" in status_lower:
+                            icon_name = "green.png"
+                        else:
+                            icon_name = "red.png"
+                    
+                    icon_path = os.path.join(resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/icons_list/"), icon_name)
+                    pixmap = LoadPixmap(path=icon_path) if fileExists(icon_path) else None
+
+                    details_text = f"Status: {status} | AU: {au} | Idle: {idle} | Prot: {protocol}"
+                    self.list.append((rname, "", details_text, pixmap))
+
+        except Exception as e:
+            print("[ServerEagleSat] OSCam Core Parsing Error Interception:", e)
+            self.list.append((_("Connection Error"), "", str(e), None))
+
+        self["menu"].setList(self.list)
+
+    def toggleReaderAction(self):
+        """Fires the toggle command for the selected list row."""
+        current_selection = self["menu"].getCurrent()
+        if not current_selection or len(current_selection) < 3:
+            self.session.open(MessageBox, _("No reader selected!"), MessageBox.TYPE_ERROR, timeout=5)
+            return
+
+        clean_name = current_selection[0]
+        if clean_name in [_("No Readers Found"), _("Connection Error")]:
+            return
+
+        details_str = current_selection[2]
+        current_status = "off"
+        if "Status: " in details_str:
+            current_status = details_str.split("Status: ")[1].split(" |")[0].strip().lower()
+
+        # Engine mapping logic checks text patterns to toggle target values safely
+        should_enable = any(x in current_status for x in ("off", "error", "disable", "down", "stop", "unknown", "needinit", "init"))
+        action = "enable" if should_enable else "disable"
+
+        try:
+            conf = read_oscam_conf()
+            encoded_reader_name = urllib.parse.quote(clean_name)
+            url = f"http://{conf['ip']}:{conf['port']}/readers.html?label={encoded_reader_name}&action={action}"
+
+            req = urllib.request.Request(url, method="GET")
+
+            if conf.get("user") and conf.get("pwd"):
+                credentials = f"{conf['user']}:{conf['pwd']}"
+                encoded = base64.b64encode(credentials.encode("utf-8")).decode("utf-8").strip()
+                req.add_header("Authorization", "Basic " + encoded)
+
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.getcode() == 200:
+                    msg = _("Reader '%s' set successfully to %s.") % (clean_name, "ON" if action == "enable" else "OFF")
+                    self.session.open(MessageBox, msg, MessageBox.TYPE_INFO, timeout=3)
+                    self.refreshOscamStatus() 
+                else:
+                    raise Exception(f"HTTP {resp.getcode()}")
+
+        except Exception as e:
+            self.session.open(MessageBox, _("Error changing reader state:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
 
     def loadBoxIcon(self):
         try:
@@ -162,12 +433,8 @@ class Eagle2(Screen):
             ])
 
     def exit(self):
+        self.refresh_timer.stop() 
         self.close()
-
-    def iptv(self): pass
-    def cccam(self): pass
-    def grid(self): pass
-    def scriptslist(self): pass
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
