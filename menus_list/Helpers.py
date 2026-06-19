@@ -5,11 +5,11 @@ Common helpers for ElieSatPanel plugin (network, image, python, storage, ram, pa
 """
 
 import os
-import re
 import sys
 import socket
 import subprocess
 import uuid
+import glob
 
 # ---------------- NETWORK HELPERS ----------------
 def get_local_ip():
@@ -223,9 +223,8 @@ def is_device_unlocked():
 def restart_softcam_services(custom_egami_cmd=None):
     """
     Force terminates active softcams and cycles image-specific start sequences.
-    Accurately routed for OBH, EGAMI, PurE2, OpenSPA, OpenPLi, and openHDF.
+    Optimized order to prevent OpenATV from falling into generic script paths.
     """
-    import glob
     try:
         executed = False
 
@@ -246,7 +245,25 @@ def restart_softcam_services(custom_egami_cmd=None):
             subprocess.call(universal_bash, shell=True)
             executed = True
 
-        # 2. PurE2 (/usr/script/cam/)
+        # 2. OpenATV standard softcam management (/etc/init.d/softcam)
+        if not executed and os.path.exists("/etc/init.d/softcam"):
+            subprocess.call("killall -9 oscam ncam CCcam 2>/dev/null", shell=True)
+            subprocess.call("sleep 2", shell=True)
+            subprocess.call("/etc/init.d/softcam stop", shell=True)
+            subprocess.call("sleep 2", shell=True)
+            subprocess.call("/etc/init.d/softcam start", shell=True)
+            executed = True
+
+        # 3. Traditional Images with custom softcam extension (/etc/init.d/softcam.emu)
+        if not executed and os.path.exists("/etc/init.d/softcam.emu"):
+            subprocess.call("killall -9 oscam ncam CCcam 2>/dev/null", shell=True)
+            subprocess.call("sleep 2", shell=True)
+            subprocess.call("/etc/init.d/softcam.emu stop", shell=True)
+            subprocess.call("sleep 2", shell=True)
+            subprocess.call("/etc/init.d/softcam.emu start", shell=True)
+            executed = True
+
+        # 4. PurE2 (/usr/script/cam/)
         if not executed and os.path.exists("/usr/script/cam"):
             pure_scripts = glob.glob("/usr/script/cam/*.sh")
             if pure_scripts:
@@ -257,7 +274,7 @@ def restart_softcam_services(custom_egami_cmd=None):
                 subprocess.call(f"{pure_scripts[0]} start", shell=True)
                 executed = True
 
-        # 3. OpenSPA, OpenPLi, and openHDF (/usr/script/)
+        # 5. OpenSPA, OpenPLi, and openHDF (/usr/script/)
         if not executed and os.path.exists("/usr/script"):
             script_files = glob.glob("/usr/script/*.sh")
             if script_files:
@@ -268,16 +285,7 @@ def restart_softcam_services(custom_egami_cmd=None):
                 subprocess.call(f"{script_files[0]} start", shell=True)
                 executed = True
 
-        # 4. Traditional Images with custom softcam extension (/etc/init.d/softcam.emu)
-        if not executed and os.path.exists("/etc/init.d/softcam.emu"):
-            subprocess.call("killall -9 oscam ncam CCcam 2>/dev/null", shell=True)
-            subprocess.call("sleep 2", shell=True)
-            subprocess.call("/etc/init.d/softcam.emu stop", shell=True)
-            subprocess.call("sleep 2", shell=True)
-            subprocess.call("/etc/init.d/softcam.emu start", shell=True)
-            executed = True
-
-        # 5. Direct systemd Fallback Routing
+        # 6. Direct systemd Fallback Routing
         if not executed:
             subprocess.call("systemctl stop softcam oscam ncam 2>/dev/null", shell=True)
             subprocess.call("sleep 2", shell=True)
