@@ -73,9 +73,9 @@
         <convert type='TemplatedMultiContent'>
         {
             'template': [
-                MultiContentEntryPixmapAlphaTest(pos = (10, 5), size = (44, 44), png = 3),
+                MultiContentEntryPixmapAlphaTest(pos = (10, 20), size = (44, 44), png = 3),
                 MultiContentEntryText(pos = (70, 17), size = (430, 40), font = 0, flags = RT_HALIGN_LEFT, text = 0),
-                MultiContentEntryText(pos = (520, 10), size = (620, 40), font = 1, flags = RT_HALIGN_LEFT, text = 2)
+                MultiContentEntryText(pos = (420, 10), size = (720, 40), font = 1, flags = RT_HALIGN_LEFT, text = 2)
             ],
             'fonts': [
                 gFont('Console', 30),
@@ -89,7 +89,7 @@
     <widget name='boxicon' position='1230,808' size='520,140' zPosition='6' alphatest='blend' transparent='1' halign='center' valign='center' />
 
     <ePixmap position="183,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_red.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="233,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="Remove" position="233,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="443,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_green.png" transparent="1" alphatest="blend" />
     <eLabel text="N/A" position="493,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
@@ -98,6 +98,6 @@
     <eLabel text="N/A" position="753,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="963,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_blue.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="1013,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="On/Off" position="1013,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
 </screen>
