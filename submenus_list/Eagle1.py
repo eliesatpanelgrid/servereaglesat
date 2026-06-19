@@ -2,7 +2,7 @@
 import os
 from enigma import getDesktop
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
-from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet
+from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet, restart_softcam_services
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
 from Components.ActionMap import NumberActionMap
 from Components.Sources.StaticText import StaticText
@@ -255,9 +255,24 @@ class Eagle1(Screen, ConfigListScreen):
     def on_config_change(self, cfg=None):
         self.update_fields()
 
+    def get_egami_rules(self):
+        """Returns the specialized bash conditional engine for EGAMI parsing execution."""
+        return (
+            '[ -d /usr/emu_scripts ] && d="/usr/emu_scripts" && p="EGcam_"; '
+            'if [ -n "$d" ]; then '
+            'for s in $d/${p}*.sh; do [[ "$s" != *"_Ci.sh"* ]] && [ -f "$s" ] && "$s" stop; done; '
+            'sleep 2; l=0; '
+            'for s in $d/${p}*[nN][cC][aA][mI]*.sh; do [ -f "$s" ] && { "$s" start & l=1; break; }; done; '
+            'if [ $l -eq 0 ]; then '
+            'for s in $d/${p}*[oO][sS][cC][aA][mM]*.sh; do [ -f "$s" ] && { "$s" start & break; }; done; '
+            'fi; fi'
+        )
+
     def keyGreenSave(self):
         summary_report = self.add_reader()
-        restart_report = self.restartSoftcam()
+        
+        # Trigger softcam cycle using the new centralized helper function
+        success, restart_report = restart_softcam_services(custom_egami_cmd=self.get_egami_rules())
         
         final_message = f"{summary_report}\n---------------------------------------\n{restart_report}"
         self.session.open(MessageBox, final_message, MessageBox.TYPE_INFO)
@@ -406,65 +421,6 @@ class Eagle1(Screen, ConfigListScreen):
         
         return summary
 
-    def restartSoftcam(self):
-        import subprocess
-        import glob
-        try:
-            subprocess.call("killall -15 oscam ncam CCcam 2>/dev/null", shell=True)
-            subprocess.call("sleep 2", shell=True)
-
-            executed = False
-
-            if os.path.exists("/usr/emu_scripts"):
-                egami_scripts = glob.glob("/usr/emu_scripts/EG_*.sh")
-                if egami_scripts:
-                    subprocess.call(f"{egami_scripts[0]} stop", shell=True)
-                    subprocess.call("sleep 2", shell=True)
-                    subprocess.call(f"{egami_scripts[0]} start", shell=True)
-                    executed = True
-
-            if not executed and os.path.exists("/usr/script/cam"):
-                openspa_scripts = glob.glob("/usr/script/cam/*.sh")
-                if openspa_scripts:
-                    subprocess.call(f"{openspa_scripts[0]} stop", shell=True)
-                    subprocess.call("sleep 2", shell=True)
-                    subprocess.call(f"{openspa_scripts[0]} start", shell=True)
-                    executed = True
-
-            if not executed and os.path.exists("/usr/camscript"):
-                bh_scripts = glob.glob("/usr/camscript/*.sh")
-                if bh_scripts:
-                    subprocess.call(f"{bh_scripts[0]} stop", shell=True)
-                    subprocess.call("sleep 2", shell=True)
-                    subprocess.call(f"{bh_scripts[0]} start", shell=True)
-                    executed = True
-
-            if not executed and os.path.exists("/usr/script"):
-                hdf_pli_scripts = glob.glob("/usr/script/softcam.sh") + \
-                                  glob.glob("/usr/script/oscam*.sh") + \
-                                  glob.glob("/usr/script/ncam*.sh") + \
-                                  glob.glob("/usr/script/CCcam*.sh")
-                if hdf_pli_scripts:
-                    subprocess.call(f"{hdf_pli_scripts[0]} stop", shell=True)
-                    subprocess.call("sleep 2", shell=True)
-                    subprocess.call(f"{hdf_pli_scripts[0]} start", shell=True)
-                    executed = True
-
-            if not executed and os.path.exists("/etc/init.d/softcam"):
-                subprocess.call("/etc/init.d/softcam stop", shell=True)
-                subprocess.call("sleep 2", shell=True)
-                subprocess.call("/etc/init.d/softcam start", shell=True)
-                executed = True
-
-            if not executed:
-                subprocess.call("systemctl stop softcam oscam ncam 2>/dev/null", shell=True)
-                subprocess.call("sleep 2", shell=True)
-                subprocess.call("systemctl start softcam oscam ncam 2>/dev/null", shell=True)
-
-            return "Softcam service configuration updated successfully."
-        except Exception as e:
-            return f"Softcam control request failed:\n{str(e)}"
-
     def loadScreenData(self):
         self.loadBoxIcon()
         try:
@@ -567,7 +523,9 @@ class Eagle1(Screen, ConfigListScreen):
         entry = self.build_entry_string(lbl_val, enable_val, proto, host_val.strip(), port_val.strip(), user_val, pass_val, last)
         
         summary_report = self.write_to_targets(entry, host_val.strip(), port_val.strip(), user_val, pass_val)
-        restart_report = self.restartSoftcam()
+        
+        # Trigger softcam cycle on restoration call as well
+        success, restart_report = restart_softcam_services(custom_egami_cmd=self.get_egami_rules())
         
         final_message = f"{summary_report}\n---------------------------------------\n{restart_report}"
         self.session.open(MessageBox, final_message, MessageBox.TYPE_INFO)
@@ -576,3 +534,6 @@ class Eagle1(Screen, ConfigListScreen):
         self.session.open(Console, _("Please wait..."), [
             "wget --no-check-certificate https://gitlab.com/eliesat/scripts/-/raw/main/check/_check-all.sh -qO - | /bin/sh"
         ])
+        
+    def keyOK(self):
+        pass
