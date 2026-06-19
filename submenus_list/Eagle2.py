@@ -224,6 +224,7 @@ class Eagle2(Screen):
                 "cancel": self.exit,
                 "back": self.exit,
                 "info": self.infoKey,
+                "red": self.deleteReaderConfirm,  # <-- Added Red button binding
                 "blue": self.toggleReaderAction,
             }
         )
@@ -231,6 +232,7 @@ class Eagle2(Screen):
         # DECORATIVE FRAME LABELS
         self["left_bar"] = Label("\n".join(list("Version " + Version)))
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
+        self["key_red"] = Label("Delete Reader")     # <-- Added structural red widget element
         self["key_blue"] = Label("Toggle Reader")
 
         # RENDER LIST MANAGEMENT COMPONENT
@@ -300,6 +302,7 @@ class Eagle2(Screen):
     def refreshOscamStatus(self):
         """Assembles data arrays to populate the target visual content template rows."""
         self.list = []
+        unsorted_readers = []
         try:
             conf = read_oscam_conf()
             active_readers = get_oscam_readers(
@@ -331,27 +334,42 @@ class Eagle2(Screen):
                     status_lower = status.lower().strip()
                     
                     # ---------------------------------------------------------
-                    # BULLETPROOF SUBSTRING STATUS MATCHING ENGINE
+                    # BULLETPROOF SUBSTRING STATUS MATCHING & PRIORITY ENGINE
                     # ---------------------------------------------------------
-                    if not status_lower or any(x in status_lower for x in ("off", "disable", "down", "stopped", "stopped")):
+                    if not status_lower or any(x in status_lower for x in ("off", "disable", "down", "stopped")):
                         icon_name = "red.png"
+                        priority = 3
                     elif any(x in status_lower for x in ("connected", "cardok", "ok", "active")) or (":" in status_lower and ("ok" in status_lower or "connected" in status_lower or len(status_lower) > 7)):
-                        # If string contains an IP socket match (like 192.168.1.10:12000) and isn't errored, it's green
                         icon_name = "green.png"
+                        priority = 1
                     elif any(x in status_lower for x in ("needinit", "unknown", "init", "error")):
                         icon_name = "yellow.png"
+                        priority = 2
                     else:
-                        # Fallback for complex CCcam proxy addresses that are live
                         if ":" in status_lower:
                             icon_name = "green.png"
+                            priority = 1
                         else:
                             icon_name = "red.png"
+                            priority = 3
                     
                     icon_path = os.path.join(resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/icons_list/"), icon_name)
                     pixmap = LoadPixmap(path=icon_path) if fileExists(icon_path) else None
 
                     details_text = f"Status: {status} | AU: {au} | Idle: {idle} | Prot: {protocol}"
-                    self.list.append((rname, "", details_text, pixmap))
+                    
+                    # Stash them into a temporary structure along with their weight priority
+                    unsorted_readers.append({
+                        "priority": priority,
+                        "row_data": (rname, "", details_text, pixmap)
+                    })
+
+                # Sort logic based on priority key (1 comes first, then 2, then 3)
+                unsorted_readers.sort(key=lambda item: item["priority"])
+                
+                # Rebuild the final interface display list
+                for item in unsorted_readers:
+                    self.list.append(item["row_data"])
 
         except Exception as e:
             print("[ServerEagleSat] OSCam Core Parsing Error Interception:", e)
@@ -401,6 +419,68 @@ class Eagle2(Screen):
 
         except Exception as e:
             self.session.open(MessageBox, _("Error changing reader state:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
+
+    # -----------------------------------------------------------------
+    #                     RED BUTTON REMOVE FUNCTIONALITY
+    # -----------------------------------------------------------------
+    def deleteReaderConfirm(self):
+        """Asks for confirmation before wiping out the chosen reader profile."""
+        current_selection = self["menu"].getCurrent()
+        if not current_selection or len(current_selection) < 3:
+            return
+
+        self.selected_reader_name = current_selection[0]
+        if self.selected_reader_name in [_("No Readers Found"), _("Connection Error")]:
+            return
+
+        msg = _("Are you sure you want to permanently delete reader:\n'%s'?") % self.selected_reader_name
+        self.session.openWithCallback(self.deleteReaderAction, MessageBox, msg, MessageBox.TYPE_YESNO)
+
+    def deleteReaderAction(self, answer):
+        """Processes the actual delete script upon prompt approval."""
+        if not answer:
+            return
+
+        clean_name = self.selected_reader_name
+        try:
+            conf = read_oscam_conf()
+            encoded_reader_name = urllib.parse.quote(clean_name)
+            
+            # 1. Dispatch Delete Call directly into OSCam Web Interface Engine
+            url = f"http://{conf['ip']}:{conf['port']}/readers.html?label={encoded_reader_name}&action=delete"
+            req = urllib.request.Request(url, method="GET")
+
+            if conf.get("user") and conf.get("pwd"):
+                credentials = f"{conf['user']}:{conf['pwd']}"
+                encoded = base64.b64encode(credentials.encode("utf-8")).decode("utf-8").strip()
+                req.add_header("Authorization", "Basic " + encoded)
+
+            # Fire HTTP Web Request
+            try:
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    pass
+            except Exception as http_err:
+                print("[ServerEagleSat] WebIF deletion call status warning:", http_err)
+
+            # 2. Local fallback / direct block removal inside physical oscam.server file
+            server_file_path = os.path.join(find_oscam_dir(), "oscam.server")
+            if os.path.exists(server_file_path):
+                with open(server_file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+
+                # Regex pattern isolates the targeted reader configuration block precisely
+                pattern = r"(?i)\[reader\][\s\S]*?label\s*=\s*" + re.escape(clean_name) + r"\b[\s\S]*?(?=\[reader\]|$)"
+                modified_content = re.sub(pattern, "", content)
+                
+                # Write back the polished data stream clean of dead configs
+                with open(server_file_path, "w", encoding="utf-8") as f:
+                    f.write(modified_content.strip() + "\n")
+
+            self.session.open(MessageBox, _("Reader '%s' removed successfully.") % clean_name, MessageBox.TYPE_INFO, timeout=3)
+            self.refreshOscamStatus()
+
+        except Exception as e:
+            self.session.open(MessageBox, _("Error trying to drop reader:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
 
     def loadBoxIcon(self):
         try:
