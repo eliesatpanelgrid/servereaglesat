@@ -269,49 +269,7 @@ class Eagle1(Screen, ConfigListScreen):
             'fi; fi'
         )
 
-    def is_label_duplicated(self, target_label):
-        """Scans active configuration files to check if the exact label already exists."""
-        targets = [
-            os.path.join(self.panel_dir, "subscription.txt"),
-            "/etc/tuxbox/config/ncam.server",
-            "/etc/tuxbox/config/ncam-icam/ncam.server",
-            "/etc/tuxbox/config/oscam.server",
-            "/etc/tuxbox/config/oscam/oscam.server",
-            "/etc/tuxbox/config/oscam-emu/oscam.server",
-            "/etc/tuxbox/config/oscam-master/oscam.server",
-            "/etc/tuxbox/config/oscam-smod/oscam.server",
-            "/etc/tuxbox/config/oscamicamnew/oscam.server",
-            "/etc/tuxbox/config/oscamicamall/oscam.server",
-            "/etc/tuxbox/config/oscam-icam/oscam.server"
-        ]
-        
-        for path in targets:
-            if os.path.exists(path):
-                try:
-                    with open(path, "r") as f:
-                        content = f.read()
-                    blocks = content.split("[reader]")
-                    for block in blocks:
-                        if not block.strip():
-                            continue
-                        for line in block.splitlines():
-                            if line.strip().startswith("label"):
-                                parts = line.split("=", 1)
-                                if len(parts) == 2 and parts[1].strip() == target_label:
-                                    return True
-                except Exception as e:
-                    print(f"[ServerEagleSat] Label validation parsing failure on {path}:", e)
-        return False
-
     def keyGreenSave(self):
-        lbl_val = self.label_custom.value if self.label_choice.value == "Custom" else self.label_choice.value
-        
-        # Validation: Stop processing if the label is already taken
-        if self.is_label_duplicated(lbl_val):
-            warning_msg = _(f"The Reader label '{lbl_val}' already exists!\nPlease change the label name and try again.")
-            self.session.open(MessageBox, warning_msg, MessageBox.TYPE_ERROR)
-            return
-
         summary_report = self.add_reader()
         
         # Trigger softcam cycle using the centralized helper function
@@ -421,7 +379,10 @@ class Eagle1(Screen, ConfigListScreen):
             "/etc/tuxbox/config/oscam-icam/oscam.server"
         ]
 
+        target_label = self.label_custom.value if self.label_choice.value == "Custom" else self.label_choice.value
+        match_device = f"{host},{port}"
         summary = ""
+
         for path in targets:
             if "subscription.txt" in path and not os.path.exists(self.panel_dir):
                 try:
@@ -432,32 +393,64 @@ class Eagle1(Screen, ConfigListScreen):
             if not os.path.exists(path):
                 continue
 
-            duplicated = False
             try:
                 with open(path, "r") as fr:
                     content = fr.read()
-                blocks = content.split("[reader]")
-                match_str = f"{host},{port}"
-                for b in blocks:
-                    if match_str in b and user in b and password in b:
-                        duplicated = True
-                        break
-            except:
-                pass
 
-            if duplicated:
-                summary += f"Already exists in: {path}\n"
-            else:
-                try:
-                    with open(path, "a") as fw:
-                        with open(path, "r") as fr:
-                            curr = fr.read()
-                        if not curr.endswith("\n\n") and len(curr.strip()) > 0:
-                            fw.write("\n")
-                        fw.write(entry_str)
+                blocks = content.split("[reader]")
+                cleaned_blocks = []
+                was_replaced = False
+                credential_duplicate_found = False
+
+                for b in blocks:
+                    if not b.strip():
+                        continue
+                    
+                    block_label = ""
+                    block_device = ""
+                    block_user = ""
+                    block_pass = ""
+
+                    for line in b.splitlines():
+                        line_stripped = line.strip()
+                        if "=" in line_stripped:
+                            k, v = line_stripped.split("=", 1)
+                            k, v = k.strip().lower(), v.strip()
+                            if k == "label":
+                                block_label = v
+                            elif k == "device":
+                                block_device = v
+                            elif k == "user":
+                                block_user = v
+                            elif k == "password":
+                                block_pass = v
+
+                    if block_device == match_device and block_user == user and block_pass == password:
+                        credential_duplicate_found = True
+
+                    if block_label == target_label:
+                        was_replaced = True
+                    else:
+                        cleaned_blocks.append("[reader]" + b)
+
+                if credential_duplicate_found:
+                    summary += f"Skipped (Credentials already exist): {path}\n"
+                    continue
+
+                new_content = "".join(cleaned_blocks).strip()
+                if new_content:
+                    new_content += "\n\n"
+                new_content += entry_str
+
+                with open(path, "w") as fw:
+                    fw.write(new_content)
+
+                if was_replaced:
+                    summary += f"Updated existing label in: {path}\n"
+                else:
                     summary += f"Successfully written: {path}\n"
-                except Exception as ex:
-                    summary += f"Write failure {path}: {str(ex)}\n"
+            except Exception as ex:
+                summary += f"Write failure {path}: {str(ex)}\n"
 
         if not summary:
             summary = "No eligible active softcam config files discovered."
@@ -530,53 +523,38 @@ class Eagle1(Screen, ConfigListScreen):
         self.close()
 
     def grid(self):
-        readers = self.parse_subscription_file()
-        if not readers:
-            self.session.open(MessageBox, _("No backup readers found in history file."), MessageBox.TYPE_INFO)
-            return
-
-        last = readers[-1]
-        msg = _("--- Last Saved Reader Backup Data ---\n\n")
-        for key, value in last.items():
-            msg += f"• {key.capitalize()}: {value}\n"
-        
-        self.session.open(MessageBox, msg, MessageBox.TYPE_INFO)
+        """Yellow Button: Wipes out subscription backup history cleanly."""
+        sub_file = os.path.join(self.panel_dir, "subscription.txt")
+        try:
+            with open(sub_file, "w") as f:
+                f.write("")
+            self.session.open(MessageBox, _("Subscription backup history has been successfully cleared!"), MessageBox.TYPE_INFO)
+        except Exception as e:
+            self.session.open(MessageBox, _(f"Failed to clear history file:\n{str(e)}"), MessageBox.TYPE_ERROR)
 
     def scriptslist(self):
+        """Blue Button: Lists backups stacked line-by-line using custom parameters layout."""
         readers = self.parse_subscription_file()
         if not readers:
-            self.session.open(MessageBox, _("Restoration canceled: No backup dataset available."), MessageBox.TYPE_ERROR)
+            self.session.open(MessageBox, _("No backup readers found in your history."), MessageBox.TYPE_INFO)
             return
 
-        last = readers[-1]
-        lbl_val = last.get("label", "Backup_Reader")
-        
-        # Validation: Stop backup process if the restored label name matches an existing one
-        if self.is_label_duplicated(lbl_val):
-            warning_msg = _(f"The backup reader label '{lbl_val}' already exists!\nPlease change the label name or delete the previous entry to restore.")
-            self.session.open(MessageBox, warning_msg, MessageBox.TYPE_ERROR)
-            return
+        formatted_list = []
+        for r in readers:
+            label = r.get("label", "Unknown Label")
+            device = r.get("device", "No URL,0")
+            username = r.get("user", "No Username")
+            password = r.get("password", "No Password")
 
-        enable_val = last.get("enable", "1")
-        proto = last.get("protocol", "cccam").lower()
-        
-        device_str = last.get("device", "localhost,22222")
-        if "," in device_str:
-            host_val, port_val = device_str.split(",", 1)
-        else:
-            host_val, port_val = device_str, "22222"
-            
-        user_val = last.get("user", "User")
-        pass_val = last.get("password", "Pass")
+            block = (
+                f"{label}\n"
+                f"{device}\n"
+                f"{username}\n"
+                f"{password}"
+            )
+            formatted_list.append(block)
 
-        entry = self.build_entry_string(lbl_val, enable_val, proto, host_val.strip(), port_val.strip(), user_val, pass_val, last)
-        
-        summary_report = self.write_to_targets(entry, host_val.strip(), port_val.strip(), user_val, pass_val)
-        
-        # Trigger softcam cycle on restoration call as well
-        success, restart_report = restart_softcam_services(custom_egami_cmd=self.get_egami_rules())
-        
-        final_message = f"{summary_report}\n---------------------------------------\n{restart_report}"
+        final_message = "\n\n-------------------------\n\n".join(formatted_list)
         self.session.open(MessageBox, final_message, MessageBox.TYPE_INFO)
 
     def infoKey(self):
@@ -585,5 +563,4 @@ class Eagle1(Screen, ConfigListScreen):
         ])
         
     def keyOK(self):
-        # Allow standard Enigma2 configuration lists to invoke virtual keyboard setups
         ConfigListScreen.keyOK(self)
