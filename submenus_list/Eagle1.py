@@ -4,7 +4,7 @@ from enigma import getDesktop
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
 from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet, restart_softcam_services
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
-from Components.ActionMap import NumberActionMap
+from Components.ActionMap import NumberActionMap, ActionMap
 from Components.Sources.StaticText import StaticText
 from Components.Label import Label
 from Components.Pixmap import Pixmap
@@ -96,7 +96,28 @@ class Eagle1(Screen, ConfigListScreen):
         self.label_choice.addNotifier(self.on_config_change, initial_call=False)
         self.protocol.addNotifier(self.on_config_change, initial_call=False)
 
-        self["NumberActions"] = NumberActionMap(["NumberActions"], {'0': self.keyNumberGlobal})
+        # Route 0 to your custom panel updater, but let 1-9 pass down into ConfigListScreen UI entry handler
+        self["NumberActions"] = NumberActionMap(["NumberActions"], {
+            '0': self.keyNumberGlobal,
+            '1': self.keyNumberGlobal,
+            '2': self.keyNumberGlobal,
+            '3': self.keyNumberGlobal,
+            '4': self.keyNumberGlobal,
+            '5': self.keyNumberGlobal,
+            '6': self.keyNumberGlobal,
+            '7': self.keyNumberGlobal,
+            '8': self.keyNumberGlobal,
+            '9': self.keyNumberGlobal
+        })
+
+        # Set up directional setup keys so left/right allow editing/changing option ranges
+        self["config_actions"] = ActionMap(["SetupActions", "DirectionActions"], {
+            "left": self.keyLeft,
+            "right": self.keyRight,
+            "up": self.keyUp,
+            "down": self.keyDown
+        }, -1)
+
         self["shortcuts"] = NumberActionMap(
             ["ShortcutActions", "WizardActions", "ColorActions", "HotkeyActions"],
             {
@@ -518,6 +539,9 @@ class Eagle1(Screen, ConfigListScreen):
             self.session.open(Console, _("Updating..."), [
                 "wget --no-check-certificate https://raw.githubusercontent.com/eliesat/eliesatpanel/main/installer.sh -qO - | /bin/sh"
             ])
+        else:
+            # Safely passes keys 1-9 to ConfigListScreen instance handlers to process typed numbers
+            ConfigListScreen.keyNumberGlobal(self, number)
 
     def exit(self):
         self.close()
