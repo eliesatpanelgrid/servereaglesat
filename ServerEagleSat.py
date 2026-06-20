@@ -27,6 +27,41 @@ from Plugins.Extensions.ServerEagleSat.__init__ import Version, Panel
 
 
 # ==========================
+# ABOUT PICTURE SCREEN
+# ==========================
+class ServerEagleSatAbout(Screen):
+    # Skin adjusted to your exact image specifications: 1254x1254 centered
+    skin = """
+        <screen name="ServerEagleSatAbout" position="center,center" size="1254,1254" title="About" flags="wfNoBorder">
+            <widget name="about_pic" position="0,0" size="1254,1254" zPosition="1" alphatest="on" />
+        </screen>
+    """
+
+    def __init__(self, session):
+        Screen.__init__(self, session)
+        self.session = session
+        
+        self["about_pic"] = Pixmap()
+        
+        self["actions"] = NumberActionMap(["WizardActions", "ColorActions", "ShortcutActions"], {
+            "ok": self.close,
+            "back": self.close,
+            "cancel": self.close
+        })
+        
+        self.onLayoutFinish.append(self.showPicture)
+
+    def showPicture(self):
+        path = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/icons_list/about.jpg")
+        if fileExists(path):
+            pix = LoadPixmap(cached=False, path=path)
+            if pix:
+                self["about_pic"].instance.setPixmap(pix)
+        else:
+            print("[ServerEagleSat] About image missing at:", path)
+
+
+# ==========================
 # MAIN SCREEN
 # ==========================
 class ServerEagleSat(Screen):
@@ -171,9 +206,12 @@ class ServerEagleSat(Screen):
         self.select_item(item)
 
     def select_item(self, item):
+        # Intercept option 11 (About) to render our direct image screen
+        if item == 11:
+            self.session.open(ServerEagleSatAbout)
+            return
+
         try:
-            # Code exception for item 11 removed. 
-            # It now loads dynamically alongside the rest of the options.
             module = importlib.import_module(
                 "Plugins.Extensions.ServerEagleSat.submenus_list.Eagle%d" % item
             )
