@@ -1,36 +1,207 @@
 # -*- coding: utf-8 -*-
 
 from Screens.Screen import Screen
-from enigma import getDesktop
+from Screens.MessageBox import MessageBox
+from enigma import getDesktop, gFont, eTimer, RT_HALIGN_LEFT
+from Tools.LoadPixmap import LoadPixmap
+from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
 
-# Import your direct hardware helper class
+# Import hardware, network, and softcam control helpers explicitly from menus_list.Helpers
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
-# Import your standalone network helpers
-from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet
+from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet, restart_softcam_services
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
 
 import os
-from threading import Timer
-
+import re
+import base64
+import urllib.request
+import urllib.parse
+import xml.etree.ElementTree as ET
 from Components.ActionMap import NumberActionMap
 from Components.Sources.StaticText import StaticText
 from Components.Sources.List import List
 from Components.Label import Label
 from Components.Pixmap import Pixmap
 
-from Tools.LoadPixmap import LoadPixmap
-from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
-
 from Plugins.Extensions.ServerEagleSat.__init__ import Version, Panel
 
 
+# =========================================================================
+#                 AUTONOMOUS NCAM CONFIG PARSERS
+# =========================================================================
+def find_ncam_dir():
+    """Scans all known Enigma2 image default directories for NCam files."""
+    possible_paths = [
+        "/etc/tuxbox/config/",
+        "/etc/tuxbox/config/ncam/",
+        "/var/tuxbox/config/",
+        "/usr/keys/",
+        "/etc/"
+    ]
+    for path in possible_paths:
+        if os.path.exists(os.path.join(path, "ncam.server")):
+            return path
+    return "/etc/tuxbox/config/"
+
+def read_ncam_conf():
+    """Parses ncam.conf to extract WebIF port and credentials."""
+    conf = {"ip": "127.0.0.1", "port": "8181", "user": "", "pwd": ""}  # Default NCam port is typically 8181
+    conf_path = os.path.join(find_ncam_dir(), "ncam.conf")
+    if not os.path.exists(conf_path):
+        return conf
+    
+    try:
+        with open(conf_path, "r", encoding="utf-8", errors="ignore") as f:
+            in_webif = False
+            for line in f:
+                line = line.strip()
+                if line.startswith("[") and line.endswith("]"):
+                    in_webif = (line.lower() == "[webif]")
+                    continue
+                if in_webif and "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip().lower()
+                    val = val.split(";")[0].split("#")[0].strip() # Strip comments
+                    if key == "httpport":
+                        conf["port"] = val
+                    elif key == "httpuser":
+                        conf["user"] = val
+                    elif key == "httppwd":
+                        conf["pwd"] = val
+    except Exception as e:
+        print("[ServerEagleSat] Error parsing ncam.conf:", e)
+    return conf
+
+def get_all_readers_from_config():
+    """Parses local ncam.server file to pull all defined readers names."""
+    readers = []
+    server_path = os.path.join(find_ncam_dir(), "ncam.server")
+    if not os.path.exists(server_path):
+        return readers
+        
+    try:
+        with open(server_path, "r", encoding="utf-8", errors="ignore") as f:
+            current_label = None
+            for line in f:
+                line = line.strip()
+                if line.lower() == "[reader]":
+                    current_label = None
+                elif "=" in line:
+                    key, val = line.split("=", 1)
+                    if key.strip().lower() == "label":
+                        current_label = val.split(";")[0].split("#")[0].strip()
+                        if current_label and current_label not in readers:
+                            readers.append(current_label)
+    except Exception as e:
+        print("[ServerEagleSat] Error parsing ncam.server:", e)
+    return readers
+
+def get_ncam_readers(ip, port, user, pwd):
+    """
+    Fetches real-time runtime readers states from the active NCam WebIF.
+    Uses a clean XML parse layout matching the pattern structure of your reference sample.
+    """
+    active_readers = []
+    
+    auth_header = None
+    if user and pwd:
+        credentials = f"{user}:{pwd}"
+        encoded = base64.b64encode(credentials.encode("utf-8")).decode("utf-8").strip()
+        auth_header = "Basic " + encoded
+
+    url_xml = f"http://{ip}:{port}/ncamapi.html?part=status"
+    try:
+        req_xml = urllib.request.Request(url_xml, method="GET")
+        if auth_header:
+            req_xml.add_header("Authorization", auth_header)
+            
+        with urllib.request.urlopen(req_xml, timeout=5) as resp:
+            xml_data = resp.read().decode("utf-8", errors="ignore")
+            root = ET.fromstring(xml_data)
+            
+            # Fetch both physical local readers (r) and proxy network readers (p)
+            for client in root.findall(".//client[@type='r']") + root.findall(".//client[@type='p']"):
+                name = client.get("name", "Unknown").strip()
+                protocol = client.get("protocol", "-").strip()
+                au = client.get("au", "-").strip()
+                
+                connection = client.find("connection")
+                status = connection.text.strip() if connection is not None and connection.text else "Unknown"
+                
+                times = client.find("times")
+                idle = times.get("idle", "-") if times is not None else "-"
+                
+                # Strip web display suffixes safely like "MyReader (p)" -> "MyReader"
+                clean_name = name.split(" (")[0].strip()
+                
+                active_readers.append({
+                    "name": clean_name,
+                    "protocol": protocol,
+                    "au": au,
+                    "idle": idle,
+                    "status": status
+                })
+            if active_readers:
+                return active_readers
+    except Exception as e:
+        print("[ServerEagleSat] XML Engine Error, using regex fallbacks:", e)
+
+    # -----------------------------------------------------------------
+    # REGEX FALLBACK: Runs if ElementTree parsing fails completely
+    # -----------------------------------------------------------------
+    try:
+        url_html = f"http://{ip}:{port}/status.html"
+        req_html = urllib.request.Request(url_html, method="GET")
+        if auth_header:
+            req_html.add_header("Authorization", auth_header)
+            
+        with urllib.request.urlopen(req_html, timeout=4) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+            rows = re.findall(r'<tr[^>]*class=["\'](?:r|p|readers)["\'][^>]*>.*?</tr>', html, re.DOTALL | re.IGNORECASE)
+            
+            for row in rows:
+                columns = re.findall(r'<td[^>]*>(.*?)</td>', row, re.DOTALL | re.IGNORECASE)
+                if not columns or len(columns) < 5:
+                    continue
+                
+                name_match = re.search(r'label=[^>]*>([^<]+)</a>', columns[0], re.IGNORECASE)
+                if not name_match:
+                    name_match = re.search(r'>([^<]+)</a>', columns[0], re.IGNORECASE)
+                
+                name = name_match.group(1).strip() if name_match else re.sub(r'<[^>]*>', '', columns[0]).strip()
+                clean_name = name.split(" (")[0].strip()
+                
+                if not clean_name or any(x in clean_name.lower() for x in ("emulator", "anonymous", "all readers", "totals")):
+                    continue
+                    
+                protocol = re.sub(r'<[^>]*>', '', columns[1]).strip()
+                au = re.sub(r'<[^>]*>', '', columns[2]).strip()
+                idle = re.sub(r'<[^>]*>', '', columns[3]).strip()
+                status = re.sub(r'<[^>]*>', '', columns[4]).strip()
+                
+                if "<a" in columns[4]:
+                    status_link = re.search(r'>([^<]+)</a>', columns[4], re.IGNORECASE)
+                    if status_link:
+                        status = status_link.group(1).strip()
+
+                active_readers.append({
+                    "name": clean_name, "protocol": protocol, "au": au, "idle": idle, "status": status
+                })
+    except Exception as e:
+        print("[ServerEagleSat] Local parsing block error fallback stack:", e)
+
+    return active_readers
+
+
+# =========================================================================
+#                         MAIN EAGLE3 SCREEN CLASS
+# =========================================================================
 class Eagle3(Screen):
 
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
 
-        # Read layout template
         try:
             skin_file = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/skins_list/eagle3-fhd.xml")
             with open(skin_file, "r") as f:
@@ -39,43 +210,38 @@ class Eagle3(Screen):
             print("[ServerEagleSat Submenu] Critical Error Reading Skin File:", e)
             self.skin = "<screen name='ServerEagleSat' position='center,center' size='1800,980' backgroundColor='#000000'/>"
 
-        self.setTitle(_("ServerEagleSat - Add Reader"))
+        self.setTitle(_("ServerEagleSat - NCam Status Panel"))
         self.indexpos = None
         
-        # Initialize your core info manager for hardware specifications
         self.system_info = SystemInfo()
 
-        # ACTIONS
+        # REMOTE SHORTCUT HANDLERS MAPPINGS
         self["NumberActions"] = NumberActionMap(["NumberActions"], {'0': self.keyNumberGlobal})
         self["shortcuts"] = NumberActionMap(
             ["ShortcutActions", "WizardActions", "ColorActions", "HotkeyActions"],
             {
-                "ok": self.keyOK,
+                "ok": self.toggleReaderAction,
                 "cancel": self.exit,
                 "back": self.exit,
-                "red": self.iptv,
                 "info": self.infoKey,
-                "green": self.cccam,
-                "yellow": self.grid,
-                "blue": self.scriptslist,
+                "red": self.deleteReaderConfirm,
+                "green": self.restartSoftcamAction,
+                "blue": self.toggleReaderAction,
             }
         )
 
-        # UI BARS
+        # DECORATIVE FRAME LABELS
         self["left_bar"] = Label("\n".join(list("Version " + Version)))
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
+        self["key_red"] = Label("Delete Reader")     
+        self["key_green"] = Label("Restart Softcam")
+        self["key_blue"] = Label("Toggle Reader")
 
-        # COLOR KEYS LABELS
-        self["key_red"] = Label("Iptv Adder")
-        self["key_green"] = Label("Cccam Adder")
-        self["key_yellow"] = Label("News")
-        self["key_blue"] = Label("Scripts")
-
-        # MENU
+        # RENDER LIST MANAGEMENT COMPONENT
         self.list = []
         self["menu"] = List(self.list)
 
-        # INITIALIZE LABELS
+        # TEXT BOX SPECIFICATIONS LABELS MAPPINGS
         labels = ["MemoryLabel", "SwapLabel", "FlashLabel", "gstreamerLabel",
                   "pythonLabel", "CPULabel", "ipLabel", "macLabel",
                   "HardwareLabel", "ImageLabel", "KernelLabel",
@@ -85,7 +251,7 @@ class Eagle3(Screen):
         for l, t in zip(labels, text):
             self[l] = StaticText(t)
 
-        # INITIALIZE VALUES
+        # VALUES DYNAMIC STORAGE DEFINITIONS
         values = ["memTotal", "swapTotal", "flashTotal", "device", "gstreamer", "python",
                   "Hardware", "Image", "CPU", "Kernel", "ipInfo", "macInfo",
                   "EnigmaVersion", "driver", "internet"]
@@ -96,15 +262,21 @@ class Eagle3(Screen):
         self["Panel"] = Label(_(Panel))
         self["boxicon"] = Pixmap()
 
-        # HOOKS NATIVE DELIVERY SYSTEM
+        # Automated Background loop (Runs every 10 seconds)
+        self.refresh_timer = eTimer()
+        self.refresh_timer.callback.append(self.refreshNcamStatus)
+
+        # Separate single-shot instance container to avoid execution lifecycle crashes
+        self.post_restart_timer = None
+        self.post_restart_conn = None
+
         self.onLayoutFinish.append(self.loadScreenData)
 
     def loadScreenData(self):
-        """Fires safely after layout finishes rendering to paint all fields simultaneously."""
-        # 1. Render STB Graphic Icon
+        """Pre-populates basic infrastructure telemetry strings."""
         self.loadBoxIcon()
 
-        # 2. POPULATE HARDWARE METRICS (Restores RAM, Swap, Flash, Gst, Python, Image, etc.)
+        # Update Hardware Information Fields
         try:
             self.system_info.memInfo(self)
             self.system_info.FlashMem(self)
@@ -116,13 +288,11 @@ class Eagle3(Screen):
         except Exception as e:
             print("[ServerEagleSat Submenu] Hardware Specifications Load Failure:", e)
 
-        # 3. DIRECT COLD EXECUTION FOR NETWORK VALUES (Maintains working network headers)
+        # Update Network Information Fields
         try:
-            # Render local system IP string
             local_ip = get_local_ip()
             self["ipInfo"].setText(str(local_ip))
 
-            # Render outside internet authentication string
             net_status = check_internet()
             if net_status == "Online":
                 self["internet"].setText(_("Connected"))
@@ -130,6 +300,250 @@ class Eagle3(Screen):
                 self["internet"].setText(_("Disconnected"))
         except Exception as e:
             print("[ServerEagleSat Submenu] Network Target Mapping Failure:", e)
+
+        # Fire initial read cycle data populate and enable loops
+        self.refreshNcamStatus()
+        self.refresh_timer.start(10000, False)
+
+    def refreshNcamStatus(self):
+        """Assembles data arrays to populate the target visual content template rows."""
+        self.list = []
+        unsorted_readers = []
+        try:
+            conf = read_ncam_conf()
+            active_readers = get_ncam_readers(
+                ip=conf["ip"],
+                port=conf["port"],
+                user=conf["user"],
+                pwd=conf["pwd"]
+            )
+            
+            # Map using lower-case normalized keys to avoid string match dropouts
+            active_map = {r['name'].lower(): r for r in active_readers}
+            all_readers = get_all_readers_from_config()
+
+            if not all_readers:
+                self.list.append((_("No Readers Found"), "", _("Please check local config files inside /etc/tuxbox/"), None))
+            else:
+                for rname in all_readers:
+                    rname_lower = rname.lower()
+                    if rname_lower in active_map:
+                        reader = active_map[rname_lower]
+                        status = reader.get('status', 'OFF')
+                        au = reader.get('au', '-')
+                        idle = reader.get('idle', '-')
+                        protocol = reader.get('protocol', '-')
+                    else:
+                        status = "OFF"
+                        au = idle = protocol = "-"
+
+                    status_lower = status.lower().strip()
+                    
+                    # ---------------------------------------------------------
+                    # BULLETPROOF SUBSTRING STATUS MATCHING & PRIORITY ENGINE
+                    # ---------------------------------------------------------
+                    if not status_lower or any(x in status_lower for x in ("off", "disable", "down", "stopped")):
+                        icon_name = "red.png"
+                        priority = 3
+                    elif any(x in status_lower for x in ("connected", "cardok", "ok", "active")) or (":" in status_lower and ("ok" in status_lower or "connected" in status_lower or len(status_lower) > 7)):
+                        icon_name = "green.png"
+                        priority = 1
+                    elif any(x in status_lower for x in ("needinit", "unknown", "init", "error")):
+                        icon_name = "yellow.png"
+                        priority = 2
+                    else:
+                        if ":" in status_lower:
+                            icon_name = "green.png"
+                            priority = 1
+                        else:
+                            icon_name = "red.png"
+                            priority = 3
+                    
+                    icon_path = os.path.join(resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/icons_list/"), icon_name)
+                    pixmap = LoadPixmap(path=icon_path) if fileExists(icon_path) else None
+
+                    details_text = f"Status: {status} | AU: {au} | Idle: {idle} | Prot: {protocol}"
+                    
+                    # Stash them into a temporary structure along with their weight priority
+                    unsorted_readers.append({
+                        "priority": priority,
+                        "row_data": (rname, "", details_text, pixmap)
+                    })
+
+                # Sort logic based on priority key (1 comes first, then 2, then 3)
+                unsorted_readers.sort(key=lambda item: item["priority"])
+                
+                # Rebuild the final interface display list
+                for item in unsorted_readers:
+                    self.list.append(item["row_data"])
+
+        except Exception as e:
+            print("[ServerEagleSat] NCam Core Parsing Error Interception:", e)
+            self.list.append((_("Connection Error"), "", str(e), None))
+
+        self["menu"].setList(self.list)
+
+    def toggleReaderAction(self):
+        """Fires the toggle command for the selected list row."""
+        current_selection = self["menu"].getCurrent()
+        if not current_selection or len(current_selection) < 3:
+            self.session.open(MessageBox, _("No reader selected!"), MessageBox.TYPE_ERROR, timeout=5)
+            return
+
+        clean_name = current_selection[0]
+        if clean_name in [_("No Readers Found"), _("Connection Error")]:
+            return
+
+        details_str = current_selection[2]
+        current_status = "off"
+        if "Status: " in details_str:
+            current_status = details_str.split("Status: ")[1].split(" |")[0].strip().lower()
+
+        # Engine mapping logic checks text patterns to toggle target values safely
+        should_enable = any(x in current_status for x in ("off", "error", "disable", "down", "stop", "unknown", "needinit", "init"))
+        action = "enable" if should_enable else "disable"
+
+        try:
+            conf = read_ncam_conf()
+            encoded_reader_name = urllib.parse.quote(clean_name)
+            url = f"http://{conf['ip']}:{conf['port']}/readers.html?label={encoded_reader_name}&action={action}"
+
+            req = urllib.request.Request(url, method="GET")
+
+            if conf.get("user") and conf.get("pwd"):
+                credentials = f"{conf['user']}:{conf['pwd']}"
+                encoded = base64.b64encode(credentials.encode("utf-8")).decode("utf-8").strip()
+                req.add_header("Authorization", "Basic " + encoded)
+
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                if resp.getcode() == 200:
+                    msg = _("Reader '%s' set successfully to %s.") % (clean_name, "ON" if action == "enable" else "OFF")
+                    self.session.open(MessageBox, msg, MessageBox.TYPE_INFO, timeout=3)
+                    self.refreshNcamStatus() 
+                else:
+                    raise Exception(f"HTTP {resp.getcode()}")
+
+        except Exception as e:
+            self.session.open(MessageBox, _("Error changing reader state:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
+
+    # -----------------------------------------------------------------
+    #                    RED BUTTON REMOVE FUNCTIONALITY
+    # -----------------------------------------------------------------
+    def deleteReaderConfirm(self):
+        """Asks for confirmation before wiping out the chosen reader profile."""
+        current_selection = self["menu"].getCurrent()
+        if not current_selection or len(current_selection) < 3:
+            return
+
+        self.selected_reader_name = current_selection[0]
+        if self.selected_reader_name in [_("No Readers Found"), _("Connection Error")]:
+            return
+
+        msg = _("Are you sure you want to permanently delete reader:\n'%s'?") % self.selected_reader_name
+        self.session.openWithCallback(self.deleteReaderAction, MessageBox, msg, MessageBox.TYPE_YESNO)
+
+    def deleteReaderAction(self, answer):
+        """Processes the actual delete script upon prompt approval."""
+        if not answer:
+            return
+
+        clean_name = self.selected_reader_name
+        try:
+            conf = read_ncam_conf()
+            encoded_reader_name = urllib.parse.quote(clean_name)
+            
+            # 1. Dispatch Delete Call directly into NCam Web Interface Engine
+            url = f"http://{conf['ip']}:{conf['port']}/readers.html?label={encoded_reader_name}&action=delete"
+            req = urllib.request.Request(url, method="GET")
+
+            if conf.get("user") and conf.get("pwd"):
+                credentials = f"{conf['user']}:{conf['pwd']}"
+                encoded = base64.b64encode(credentials.encode("utf-8")).decode("utf-8").strip()
+                req.add_header("Authorization", "Basic " + encoded)
+
+            # Fire HTTP Web Request
+            try:
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    pass
+            except Exception as http_err:
+                print("[ServerEagleSat] WebIF deletion call status warning:", http_err)
+
+            # 2. Local fallback / direct block removal inside physical ncam.server file
+            server_file_path = os.path.join(find_ncam_dir(), "ncam.server")
+            if os.path.exists(server_file_path):
+                with open(server_file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+
+                # Regex pattern isolates the targeted reader configuration block precisely
+                pattern = r"(?i)\[reader\][\s\S]*?label\s*=\s*" + re.escape(clean_name) + r"\b[\s\S]*?(?=\[reader\]|$)"
+                modified_content = re.sub(pattern, "", content)
+                
+                # Write back the polished data stream clean of dead configs
+                with open(server_file_path, "w", encoding="utf-8") as f:
+                    f.write(modified_content.strip() + "\n")
+
+            self.session.open(MessageBox, _("Reader '%s' removed successfully.") % clean_name, MessageBox.TYPE_INFO, timeout=3)
+            self.refreshNcamStatus()
+
+        except Exception as e:
+            self.session.open(MessageBox, _("Error trying to drop reader:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
+
+    # -----------------------------------------------------------------
+    #                 GREEN BUTTON SOFTCAM RESTART ACTION
+    # -----------------------------------------------------------------
+    def restartSoftcamAction(self):
+        """Invokes the multi-image fallback restart mechanism from Helpers.py."""
+        success, message = restart_softcam_services()
+        if success:
+            self.session.open(MessageBox, _(message), MessageBox.TYPE_INFO, timeout=4)
+            
+            # Stop any existing single-shot instance safely
+            if self.post_restart_timer is not None:
+                try:
+                    self.post_restart_timer.stop()
+                except Exception:
+                    pass
+            
+            # Instantiate a clean dedicated timer instance
+            self.post_restart_timer = eTimer()
+            
+            # Universal connection strategy wrapper with strict exception fallbacks
+            connected = False
+            if hasattr(self.post_restart_timer, "timeout"):
+                try:
+                    self.post_restart_conn = self.post_restart_timer.timeout.connect(self.refreshNcamStatus)
+                    connected = True
+                except Exception:
+                    # The attribute exists but does not support .connect() on this image
+                    connected = False
+
+            if not connected:
+                try:
+                    self.post_restart_timer.callback.append(self.refreshNcamStatus)
+                except Exception as e:
+                    print("[ServerEagleSat] Failed to bind background recovery timer:", e)
+
+            # Fire execution window safely. Passing True enforces single-shot execution rules.
+            try:
+                self.post_restart_timer.start(2000, True)
+            except Exception as e:
+                print("[ServerEagleSat] Error starting timer instance execution loop:", e)
+        else:
+            self.session.open(MessageBox, _(message), MessageBox.TYPE_ERROR, timeout=6)
+
+    def exit(self):
+        """Clears looping background operations and exits the screen environment gracefully."""
+        try:
+            self.refresh_timer.stop() 
+        except Exception:
+            pass
+            
+        if self.post_restart_timer is not None:
+            try:
+                self.post_restart_timer.stop()
+            except Exception:
+                pass
+        self.close()
 
     def loadBoxIcon(self):
         try:
@@ -160,14 +574,6 @@ class Eagle3(Screen):
             self.session.open(Console, _("Updating..."), [
                 "wget --no-check-certificate https://raw.githubusercontent.com/eliesat/eliesatpanel/main/installer.sh -qO - | /bin/sh"
             ])
-
-    def exit(self):
-        self.close()
-
-    def iptv(self): pass
-    def cccam(self): pass
-    def grid(self): pass
-    def scriptslist(self): pass
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
