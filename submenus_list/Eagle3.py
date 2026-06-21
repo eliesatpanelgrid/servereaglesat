@@ -226,6 +226,7 @@ class Eagle3(Screen):
                 "info": self.infoKey,
                 "red": self.deleteReaderConfirm,
                 "green": self.restartSoftcamAction,
+                "yellow": self.showReaderCredentialsAction,
                 "blue": self.toggleReaderAction,
             }
         )
@@ -235,6 +236,7 @@ class Eagle3(Screen):
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
         self["key_red"] = Label("Delete Reader")     
         self["key_green"] = Label("Restart Softcam")
+        self["key_yellow"] = Label("Show Credentials")
         self["key_blue"] = Label("Toggle Reader")
 
         # RENDER LIST MANAGEMENT COMPONENT
@@ -427,7 +429,7 @@ class Eagle3(Screen):
             self.session.open(MessageBox, _("Error changing reader state:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
 
     # -----------------------------------------------------------------
-    #                    RED BUTTON REMOVE FUNCTIONALITY
+    #                   RED BUTTON REMOVE FUNCTIONALITY
     # -----------------------------------------------------------------
     def deleteReaderConfirm(self):
         """Asks for confirmation before wiping out the chosen reader profile."""
@@ -530,6 +532,78 @@ class Eagle3(Screen):
                 print("[ServerEagleSat] Error starting timer instance execution loop:", e)
         else:
             self.session.open(MessageBox, _(message), MessageBox.TYPE_ERROR, timeout=6)
+
+    # -----------------------------------------------------------------
+    #                 YELLOW BUTTON SHOW CREDENTIALS ACTION
+    # -----------------------------------------------------------------
+    def showReaderCredentialsAction(self):
+        """Parses ncam.server configuration to extract raw details for selected reader."""
+        current_selection = self["menu"].getCurrent()
+        if not current_selection or len(current_selection) < 3:
+            self.session.open(MessageBox, _("No reader selected!"), MessageBox.TYPE_ERROR, timeout=4)
+            return
+
+        label_name = current_selection[0]
+        if label_name in [_("No Readers Found"), _("Connection Error")]:
+            return
+
+        server_dir = find_ncam_dir()
+        server_file_path = os.path.join(server_dir, "ncam.server")
+        
+        # Default placeholder collection
+        creds = {
+            "file": server_file_path,
+            "label": label_name,
+            "url": "-",
+            "port": "-",
+            "user": "-",
+            "pass": "-"
+        }
+
+        if os.path.exists(server_file_path):
+            try:
+                with open(server_file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+
+                # Isolate specific reader block safely
+                pattern = r"(?i)\[reader\][\s\S]*?label\s*=\s*" + re.escape(label_name) + r"\b[\s\S]*?(?=\[reader\]|$)"
+                match = re.search(pattern, content)
+                
+                if match:
+                    block = match.group(0)
+                    for line in block.splitlines():
+                        line = line.strip()
+                        if "=" in line and not line.startswith(("#", ";")):
+                            key, val = line.split("=", 1)
+                            key = key.strip().lower()
+                            val = val.split(";")[0].split("#")[0].strip() # Clean inline comments
+
+                            if key == "device":
+                                # Handle proxy format: device = url,port
+                                if "," in val:
+                                    parts = val.split(",")
+                                    creds["url"] = parts[0].strip()
+                                    creds["port"] = parts[1].strip()
+                                else:
+                                    creds["url"] = val
+                            elif key == "user":
+                                creds["user"] = val
+                            elif key == "password":
+                                creds["pass"] = val
+            except Exception as e:
+                print("[ServerEagleSat] Extraction processing error:", e)
+
+        # Build clean string in requested order
+        msg = (
+            _("File path: %s\n") % creds["file"] +
+            _("Label: %s\n") % creds["label"] +
+            _("Url: %s\n") % creds["url"] +
+            _("Port: %s\n") % creds["port"] +
+            _("User: %s\n") % creds["user"] +
+            _("Pass: %s") % creds["pass"]
+        )
+        
+        self.session.open(MessageBox, msg, MessageBox.TYPE_INFO)
 
     def exit(self):
         """Clears looping background operations and exits the screen environment gracefully."""
