@@ -6,9 +6,9 @@ from enigma import getDesktop, gFont, eTimer, RT_HALIGN_LEFT
 from Tools.LoadPixmap import LoadPixmap
 from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
 
-# Import your core hardware info helpers
+# Import hardware, network, and softcam control helpers explicitly from menus_list.Helpers
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
-from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet
+from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet, restart_softcam_services
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
 
 import os
@@ -27,7 +27,7 @@ from Plugins.Extensions.ServerEagleSat.__init__ import Version, Panel
 
 
 # =========================================================================
-#                    AUTONOMOUS OSCAM CONFIG PARSERS
+#                 AUTONOMOUS OSCAM CONFIG PARSERS
 # =========================================================================
 def find_oscam_dir():
     """Scans all known Enigma2 image default directories for OSCam files."""
@@ -194,7 +194,7 @@ def get_oscam_readers(ip, port, user, pwd):
 
 
 # =========================================================================
-#                          MAIN EAGLE2 SCREEN CLASS
+#                         MAIN EAGLE2 SCREEN CLASS
 # =========================================================================
 class Eagle2(Screen):
 
@@ -224,7 +224,8 @@ class Eagle2(Screen):
                 "cancel": self.exit,
                 "back": self.exit,
                 "info": self.infoKey,
-                "red": self.deleteReaderConfirm,  # <-- Added Red button binding
+                "red": self.deleteReaderConfirm,
+                "green": self.restartSoftcamAction,
                 "blue": self.toggleReaderAction,
             }
         )
@@ -232,7 +233,8 @@ class Eagle2(Screen):
         # DECORATIVE FRAME LABELS
         self["left_bar"] = Label("\n".join(list("Version " + Version)))
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
-        self["key_red"] = Label("Delete Reader")     # <-- Added structural red widget element
+        self["key_red"] = Label("Delete Reader")     
+        self["key_green"] = Label("Restart Softcam")
         self["key_blue"] = Label("Toggle Reader")
 
         # RENDER LIST MANAGEMENT COMPONENT
@@ -263,6 +265,10 @@ class Eagle2(Screen):
         # Automated Background loop (Runs every 10 seconds)
         self.refresh_timer = eTimer()
         self.refresh_timer.callback.append(self.refreshOscamStatus)
+
+        # Separate single-shot instance container to avoid execution lifecycle crashes
+        self.post_restart_timer = None
+        self.post_restart_conn = None
 
         self.onLayoutFinish.append(self.loadScreenData)
 
@@ -421,7 +427,7 @@ class Eagle2(Screen):
             self.session.open(MessageBox, _("Error changing reader state:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
 
     # -----------------------------------------------------------------
-    #                     RED BUTTON REMOVE FUNCTIONALITY
+    #                    RED BUTTON REMOVE FUNCTIONALITY
     # -----------------------------------------------------------------
     def deleteReaderConfirm(self):
         """Asks for confirmation before wiping out the chosen reader profile."""
@@ -482,6 +488,63 @@ class Eagle2(Screen):
         except Exception as e:
             self.session.open(MessageBox, _("Error trying to drop reader:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
 
+# -----------------------------------------------------------------
+    #                 GREEN BUTTON SOFTCAM RESTART ACTION
+    # -----------------------------------------------------------------
+    def restartSoftcamAction(self):
+        """Invokes the multi-image fallback restart mechanism from Helpers.py."""
+        success, message = restart_softcam_services()
+        if success:
+            self.session.open(MessageBox, _(message), MessageBox.TYPE_INFO, timeout=4)
+            
+            # Stop any existing single-shot instance safely
+            if self.post_restart_timer is not None:
+                try:
+                    self.post_restart_timer.stop()
+                except Exception:
+                    pass
+            
+            # Instantiate a clean dedicated timer instance
+            self.post_restart_timer = eTimer()
+            
+            # Universal connection strategy wrapper with strict exception fallbacks
+            connected = False
+            if hasattr(self.post_restart_timer, "timeout"):
+                try:
+                    self.post_restart_conn = self.post_restart_timer.timeout.connect(self.refreshOscamStatus)
+                    connected = True
+                except Exception:
+                    # The attribute exists but does not support .connect() on this image
+                    connected = False
+
+            if not connected:
+                try:
+                    self.post_restart_timer.callback.append(self.refreshOscamStatus)
+                except Exception as e:
+                    print("[ServerEagleSat] Failed to bind background recovery timer:", e)
+
+            # Fire execution window safely. Passing True enforces single-shot execution rules.
+            try:
+                self.post_restart_timer.start(2000, True)
+            except Exception as e:
+                print("[ServerEagleSat] Error starting timer instance execution loop:", e)
+        else:
+            self.session.open(MessageBox, _(message), MessageBox.TYPE_ERROR, timeout=6)
+
+    def exit(self):
+        """Clears looping background operations and exits the screen environment gracefully."""
+        try:
+            self.refresh_timer.stop() 
+        except Exception:
+            pass
+            
+        if self.post_restart_timer is not None:
+            try:
+                self.post_restart_timer.stop()
+            except Exception:
+                pass
+        self.close()
+
     def loadBoxIcon(self):
         try:
             box = "default"
@@ -514,6 +577,8 @@ class Eagle2(Screen):
 
     def exit(self):
         self.refresh_timer.stop() 
+        if self.post_restart_timer is not None:
+            self.post_restart_timer.stop()
         self.close()
 
     def infoKey(self):
