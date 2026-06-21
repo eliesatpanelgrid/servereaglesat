@@ -96,6 +96,57 @@ def get_all_readers_from_config():
         print("[ServerEagleSat] Error parsing oscam.server:", e)
     return readers
 
+def get_reader_credentials(label_name):
+    """Parses local oscam.server configuration block to extract connection specs."""
+    creds = {
+        "file": "-",
+        "label": label_name,
+        "url": "-",
+        "port": "-",
+        "user": "-",
+        "pass": "-"
+    }
+    
+    server_dir = find_oscam_dir()
+    server_file_path = os.path.join(server_dir, "oscam.server")
+    creds["file"] = server_file_path
+    
+    if not os.path.exists(server_file_path):
+        return creds
+        
+    try:
+        with open(server_file_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+            
+        # Case-insensitive configuration block regex parser matching reader arrays
+        pattern = r"(?i)\[reader\][\s\S]*?label\s*=\s*" + re.escape(label_name) + r"\b[\s\S]*?(?=\[reader\]|$)"
+        match = re.search(pattern, content)
+        
+        if match:
+            block_text = match.group(0)
+            for line in block_text.splitlines():
+                line = line.strip()
+                if "=" in line:
+                    key, val = line.split("=", 1)
+                    key = key.strip().lower()
+                    val = val.split(";")[0].split("#")[0].strip() # Clean out inline comment structures
+                    
+                    if key == "device":
+                        if "," in val:
+                            url_part, port_part = val.split(",", 1)
+                            creds["url"] = url_part.strip()
+                            creds["port"] = port_part.strip()
+                        else:
+                            creds["url"] = val
+                    elif key == "user":
+                        creds["user"] = val
+                    elif key == "password":
+                        creds["pass"] = val
+    except Exception as e:
+        print("[ServerEagleSat] Error isolating config credentials parsing arrays:", e)
+        
+    return creds
+
 def get_oscam_readers(ip, port, user, pwd):
     """
     Fetches real-time runtime readers states from the active OSCam WebIF.
@@ -226,6 +277,7 @@ class Eagle2(Screen):
                 "info": self.infoKey,
                 "red": self.deleteReaderConfirm,
                 "green": self.restartSoftcamAction,
+                "yellow": self.showReaderCredentialsAction,
                 "blue": self.toggleReaderAction,
             }
         )
@@ -235,6 +287,7 @@ class Eagle2(Screen):
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
         self["key_red"] = Label("Delete Reader")     
         self["key_green"] = Label("Restart Softcam")
+        self["key_yellow"] = Label("Show Credentials")
         self["key_blue"] = Label("Toggle Reader")
 
         # RENDER LIST MANAGEMENT COMPONENT
@@ -488,7 +541,35 @@ class Eagle2(Screen):
         except Exception as e:
             self.session.open(MessageBox, _("Error trying to drop reader:\n%s") % str(e), MessageBox.TYPE_ERROR, timeout=5)
 
-# -----------------------------------------------------------------
+    # -----------------------------------------------------------------
+    #               YELLOW BUTTON CREDENTIALS FUNCTIONALITY
+    # -----------------------------------------------------------------
+    def showReaderCredentialsAction(self):
+        """Retrieves and pops up localized physical config attributes from oscam.server."""
+        current_selection = self["menu"].getCurrent()
+        if not current_selection or len(current_selection) < 3:
+            return
+
+        label_name = current_selection[0]
+        if label_name in [_("No Readers Found"), _("Connection Error")]:
+            return
+
+        # Query parsing block to extract local data parameters 
+        creds = get_reader_credentials(label_name)
+
+        # Build message container layout properties exactly matching screen style specifications
+        msg = (
+            _("File path: %s\n") % creds["file"] +
+            _("Label: %s\n") % creds["label"] +
+            _("Url: %s\n") % creds["url"] +
+            _("Port: %s\n") % creds["port"] +
+            _("User: %s\n") % creds["user"] +
+            _("Pass: %s") % creds["pass"]
+        )
+        
+        self.session.open(MessageBox, msg, MessageBox.TYPE_INFO)
+
+    # -----------------------------------------------------------------
     #                 GREEN BUTTON SOFTCAM RESTART ACTION
     # -----------------------------------------------------------------
     def restartSoftcamAction(self):
@@ -514,7 +595,6 @@ class Eagle2(Screen):
                     self.post_restart_conn = self.post_restart_timer.timeout.connect(self.refreshOscamStatus)
                     connected = True
                 except Exception:
-                    # The attribute exists but does not support .connect() on this image
                     connected = False
 
             if not connected:
@@ -530,20 +610,6 @@ class Eagle2(Screen):
                 print("[ServerEagleSat] Error starting timer instance execution loop:", e)
         else:
             self.session.open(MessageBox, _(message), MessageBox.TYPE_ERROR, timeout=6)
-
-    def exit(self):
-        """Clears looping background operations and exits the screen environment gracefully."""
-        try:
-            self.refresh_timer.stop() 
-        except Exception:
-            pass
-            
-        if self.post_restart_timer is not None:
-            try:
-                self.post_restart_timer.stop()
-            except Exception:
-                pass
-        self.close()
 
     def loadBoxIcon(self):
         try:
