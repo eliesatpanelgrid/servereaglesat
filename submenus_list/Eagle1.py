@@ -12,6 +12,7 @@ from Tools.LoadPixmap import LoadPixmap
 from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
 from Screens.Screen import Screen
 from Screens.MessageBox import MessageBox
+from Screens.ChoiceBox import ChoiceBox
 from Components.ConfigList import ConfigListScreen
 from Components.config import (
     ConfigText,
@@ -96,7 +97,6 @@ class Eagle1(Screen, ConfigListScreen):
         self.label_choice.addNotifier(self.on_config_change, initial_call=False)
         self.protocol.addNotifier(self.on_config_change, initial_call=False)
 
-        # Route 0 to your custom panel updater, but let 1-9 pass down into ConfigListScreen UI entry handler
         self["NumberActions"] = NumberActionMap(["NumberActions"], {
             '0': self.keyNumberGlobal,
             '1': self.keyNumberGlobal,
@@ -110,7 +110,6 @@ class Eagle1(Screen, ConfigListScreen):
             '9': self.keyNumberGlobal
         })
 
-        # Set up directional setup keys so left/right allow editing/changing option ranges
         self["config_actions"] = ActionMap(["SetupActions", "DirectionActions"], {
             "left": self.keyLeft,
             "right": self.keyRight,
@@ -169,19 +168,29 @@ class Eagle1(Screen, ConfigListScreen):
                 if not b.strip():
                     continue
                 info = {}
+                lines = []
                 for line in b.splitlines():
                     if "=" in line:
                         k, v = line.split("=", 1)
                         info[k.strip()] = v.strip()
+                    lines.append(line)
+                info["_raw_lines"] = lines
                 readers.append(info)
             return readers
         except Exception as e:
-            print("[ServerEagleSat] Error parsing subscription historical logs:", e)
+            print("[ServerEagleSat] Error parsing subscription file:", e)
             return []
 
     def load_last_reader_to_config(self):
         readers = self.parse_subscription_file()
         if not readers:
+            self.host.value = "tv8k.cc"
+            self.port.value = 22222
+            self.user.value = "User"
+            self.passw.value = "Pass"
+            self.protocol.value = "cccam"
+            self.status.value = "enabled"
+            self.label_choice.value = "ServerEagle"
             return
         try:
             last = readers[-1]
@@ -278,7 +287,6 @@ class Eagle1(Screen, ConfigListScreen):
         self.update_fields()
 
     def get_egami_rules(self):
-        """Returns the specialized bash conditional engine for EGAMI parsing execution."""
         return (
             '[ -d /usr/emu_scripts ] && d="/usr/emu_scripts" && p="EGcam_"; '
             'if [ -n "$d" ]; then '
@@ -292,10 +300,7 @@ class Eagle1(Screen, ConfigListScreen):
 
     def keyGreenSave(self):
         summary_report = self.add_reader()
-        
-        # Trigger softcam cycle using the centralized helper function
         success, restart_report = restart_softcam_services(custom_egami_cmd=self.get_egami_rules())
-        
         final_message = f"{summary_report}\n---------------------------------------\n{restart_report}"
         self.session.open(MessageBox, final_message, MessageBox.TYPE_INFO)
 
@@ -352,7 +357,7 @@ class Eagle1(Screen, ConfigListScreen):
         )
         if extra_dict:
             for k, v in extra_dict.items():
-                if k not in ["label", "enable", "protocol", "device", "user", "password"]:
+                if k not in ["label", "enable", "protocol", "device", "user", "password", "_raw_lines"]:
                     entry += f"{k} = {v}\n"
         entry = entry.strip() + "\n\n"
         return entry
@@ -540,46 +545,129 @@ class Eagle1(Screen, ConfigListScreen):
                 "wget --no-check-certificate https://raw.githubusercontent.com/eliesat/eliesatpanel/main/installer.sh -qO - | /bin/sh"
             ])
         else:
-            # Safely passes keys 1-9 to ConfigListScreen instance handlers to process typed numbers
             ConfigListScreen.keyNumberGlobal(self, number)
 
     def exit(self):
         self.close()
 
     def grid(self):
-        """Yellow Button: Wipes out subscription backup history cleanly."""
-        sub_file = os.path.join(self.panel_dir, "subscription.txt")
-        try:
-            with open(sub_file, "w") as f:
-                f.write("")
-            self.session.open(MessageBox, _("Subscription backup history has been successfully cleared!"), MessageBox.TYPE_INFO)
-        except Exception as e:
-            self.session.open(MessageBox, _(f"Failed to clear history file:\n{str(e)}"), MessageBox.TYPE_ERROR)
-
-    def scriptslist(self):
-        """Blue Button: Lists backups stacked line-by-line using custom parameters layout."""
+        """Yellow Button: Lists readers dynamically to remove them."""
         readers = self.parse_subscription_file()
         if not readers:
-            self.session.open(MessageBox, _("No backup readers found in your history."), MessageBox.TYPE_INFO)
+            self.session.open(MessageBox, _("No backup readers found to remove."), MessageBox.TYPE_INFO)
             return
 
-        formatted_list = []
-        for r in readers:
-            label = r.get("label", "Unknown Label")
-            device = r.get("device", "No URL,0")
-            username = r.get("user", "No Username")
-            password = r.get("password", "No Password")
+        choices = []
+        for index, r in enumerate(readers):
+            label = r.get("label", "Unknown")
+            device = r.get("device", "0,0")
+            url, port = device.split(",", 1) if "," in device else (device, "0")
+            username = r.get("user", "Unknown")
+            password = r.get("password", "Unknown")
 
-            block = (
-                f"{label}\n"
-                f"{device}\n"
-                f"{username}\n"
-                f"{password}"
-            )
-            formatted_list.append(block)
+            display_line = f"{label} | {url.strip()} | {port.strip()} | {username} | {password}"
+            choices.append((display_line, index))
 
-        final_message = "\n\n-------------------------\n\n".join(formatted_list)
-        self.session.open(MessageBox, final_message, MessageBox.TYPE_INFO)
+        self.session.openWithCallback(self.on_reader_selected_to_remove, ChoiceBox, title=_("Select a reader to remove:"), list=choices)
+
+    def on_reader_selected_to_remove(self, choice):
+        if choice is None:
+            return
+
+        selected_index = choice[1]
+        file_path = os.path.join(self.panel_dir, "subscription.txt")
+        
+        try:
+            readers = self.parse_subscription_file()
+            if selected_index >= len(readers):
+                return
+
+            del readers[selected_index]
+
+            new_content = ""
+            for r in readers:
+                new_content += self.build_entry_string(
+                    r.get("label", "Unknown"),
+                    r.get("enable", "1"),
+                    r.get("protocol", "cccam"),
+                    r.get("device", "0,0").split(",")[0],
+                    r.get("device", "0,0").split(",")[1] if "," in r.get("device", "0,0") else "0",
+                    r.get("user", ""),
+                    r.get("password", ""),
+                    r
+                )
+
+            with open(file_path, "w") as f:
+                f.write(new_content.strip() + "\n\n" if new_content.strip() else "")
+
+            self.session.open(MessageBox, _("Reader removed successfully from backup storage!"), MessageBox.TYPE_INFO)
+            
+            self.load_last_reader_to_config()
+            self.update_fields()
+
+        except Exception as e:
+            self.session.open(MessageBox, _(f"Failed to remove chosen reader configuration block:\n{str(e)}"), MessageBox.TYPE_ERROR)
+
+    def scriptslist(self):
+        """Blue Button: Lists readers in Label | url | port | username | password format."""
+        readers = self.parse_subscription_file()
+        if not readers:
+            self.session.open(MessageBox, _("No readers found in subscription file."), MessageBox.TYPE_INFO)
+            return
+
+        choices = []
+        for index, r in enumerate(readers):
+            label = r.get("label", "Unknown")
+            device = r.get("device", "0,0")
+            url, port = device.split(",", 1) if "," in device else (device, "0")
+            username = r.get("user", "Unknown")
+            password = r.get("password", "Unknown")
+
+            # Formatted exactly as requested
+            display_line = f"{label} | {url.strip()} | {port.strip()} | {username} | {password}"
+            choices.append((display_line, index))
+
+        self.session.openWithCallback(self.on_reader_selected, ChoiceBox, title=_("Select Reader to Select/Move:"), list=choices)
+
+    def on_reader_selected(self, choice):
+        if choice is None:
+            return
+
+        selected_index = choice[1]
+        file_path = os.path.join(self.panel_dir, "subscription.txt")
+
+        try:
+            readers = self.parse_subscription_file()
+            if not readers or selected_index >= len(readers):
+                return
+
+            # If there's more than 1 reader, modify file structure permanently
+            if len(readers) > 1:
+                chosen_reader = readers.pop(selected_index)
+                readers.append(chosen_reader)  # Put chosen one permanently at the end
+
+                new_content = ""
+                for r in readers:
+                    new_content += self.build_entry_string(
+                        r.get("label", "Unknown"),
+                        r.get("enable", "1"),
+                        r.get("protocol", "cccam"),
+                        r.get("device", "0,0").split(",")[0],
+                        r.get("device", "0,0").split(",")[1] if "," in r.get("device", "0,0") else "0",
+                        r.get("user", ""),
+                        r.get("password", ""),
+                        r
+                    )
+
+                with open(file_path, "w") as f:
+                    f.write(new_content.strip() + "\n\n")
+
+            # Dynamic Menu Refresh: Forces UI to pull information from the now modified end-of-file data 
+            self.load_last_reader_to_config()
+            self.update_fields()
+
+        except Exception as e:
+            print("[ServerEagleSat] Error arranging reader sequence block:", e)
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
