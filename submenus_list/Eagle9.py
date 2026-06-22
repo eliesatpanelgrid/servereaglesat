@@ -135,6 +135,8 @@ class Eagle9(Screen):
         except Exception as e:
             print("[ServerEagleSat Submenu] Network Target Mapping Failure:", e)
 
+        # Force immediate check before timer starts to show content quickly
+        self.updateCamLogs()
         self.log_timer.start(2000, False)
 
     def updateCamLogs(self):
@@ -163,7 +165,8 @@ class Eagle9(Screen):
             self.last_log_content = current_log_data
             if "cam_logs" in self:
                 self["cam_logs"].setText(current_log_data)
-                self["cam_logs"].pageDown()
+                # CHANGED: Replaced pageDown() with lastPage() to force window straight to the absolute end
+                self["cam_logs"].lastPage()
 
     def logUp(self):
         if "cam_logs" in self:
