@@ -80,9 +80,9 @@
     <eLabel text="Save Reader" position="493,830" size="160,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="703,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_yellow.png" transparent="1" alphatest="blend" />
-    <eLabel text="Clear Backups" position="753,830" size="220,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="Clear Backup" position="753,830" size="220,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="963,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_blue.png" transparent="1" alphatest="blend" />
-    <eLabel text="Backups" position="1013,830" size="150,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="Select Backup" position="1013,830" size="220,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
 </screen>
