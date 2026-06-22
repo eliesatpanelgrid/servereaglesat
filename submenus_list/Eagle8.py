@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 
 from Screens.Screen import Screen
-from enigma import getDesktop
+from Screens.VirtualKeyBoard import VirtualKeyBoard
+from enigma import getDesktop, gFont
 
 # Import your direct hardware helper class
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
@@ -30,6 +31,9 @@ class Eagle8(Screen):
         Screen.__init__(self, session)
         self.session = session
 
+        # Track the path of the currently loaded config file
+        self.current_file_path = None
+
         # Read layout template
         try:
             skin_file = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/skins_list/eagle8-fhd.xml")
@@ -39,7 +43,7 @@ class Eagle8(Screen):
             print("[ServerEagleSat Submenu] Critical Error Reading Skin File:", e)
             self.skin = "<screen name='ServerEagleSat' position='center,center' size='1800,980' backgroundColor='#000000'/>"
 
-        self.setTitle(_("ServerEagleSat - Add Reader"))
+        self.setTitle(_("ServerEagleSat - Server Config Editor"))
         self.indexpos = None
         
         # Initialize your core info manager for hardware specifications
@@ -50,14 +54,14 @@ class Eagle8(Screen):
         self["shortcuts"] = NumberActionMap(
             ["ShortcutActions", "WizardActions", "ColorActions", "HotkeyActions"],
             {
-                "ok": self.keyOK,
+                "ok": self.keyOK,                   # OK button edits the line
                 "cancel": self.exit,
                 "back": self.exit,
-                "red": self.iptv,
+                "red": self.removeSelectedLine,     # Red button removes line from screen
                 "info": self.infoKey,
-                "green": self.cccam,
-                "yellow": self.grid,
-                "blue": self.scriptslist,
+                "green": self.saveChanges,          # Green button saves modifications to file
+                "yellow": self.loadOscamContent,    # Yellow button loads oscam.server
+                "blue": self.loadNcamContent,       # Blue button loads ncam.server
             }
         )
 
@@ -66,12 +70,12 @@ class Eagle8(Screen):
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
 
         # COLOR KEYS LABELS
-        self["key_red"] = Label("Iptv Adder")
-        self["key_green"] = Label("Cccam Adder")
-        self["key_yellow"] = Label("News")
-        self["key_blue"] = Label("Scripts")
+        self["key_red"] = Label("Remove Line")
+        self["key_green"] = Label("Save Changes")
+        self["key_yellow"] = Label("OSCam Server")
+        self["key_blue"] = Label("NCam Server")
 
-        # MENU
+        # MENU / FILE CONTENT LIST
         self.list = []
         self["menu"] = List(self.list)
 
@@ -101,10 +105,9 @@ class Eagle8(Screen):
 
     def loadScreenData(self):
         """Fires safely after layout finishes rendering to paint all fields simultaneously."""
-        # 1. Render STB Graphic Icon
         self.loadBoxIcon()
 
-        # 2. POPULATE HARDWARE METRICS (Restores RAM, Swap, Flash, Gst, Python, Image, etc.)
+        # POPULATE HARDWARE METRICS
         try:
             self.system_info.memInfo(self)
             self.system_info.FlashMem(self)
@@ -116,13 +119,11 @@ class Eagle8(Screen):
         except Exception as e:
             print("[ServerEagleSat Submenu] Hardware Specifications Load Failure:", e)
 
-        # 3. DIRECT COLD EXECUTION FOR NETWORK VALUES (Maintains working network headers)
+        # DIRECT COLD EXECUTION FOR NETWORK VALUES
         try:
-            # Render local system IP string
             local_ip = get_local_ip()
             self["ipInfo"].setText(str(local_ip))
 
-            # Render outside internet authentication string
             net_status = check_internet()
             if net_status == "Online":
                 self["internet"].setText(_("Connected"))
@@ -130,6 +131,112 @@ class Eagle8(Screen):
                 self["internet"].setText(_("Disconnected"))
         except Exception as e:
             print("[ServerEagleSat Submenu] Network Target Mapping Failure:", e)
+
+        # DEFAULT INITIAL LOAD: oscam.server
+        self.loadOscamContent()
+
+    def readServerFile(self, filename):
+        """Scans /etc/tuxbox/config/ and subfolders for the given file name and loads its text content."""
+        search_root = "/etc/tuxbox/config"
+        self.current_file_path = None
+        
+        if os.path.exists(search_root):
+            for root, dirs, files in os.walk(search_root):
+                if filename in files:
+                    self.current_file_path = os.path.join(root, filename)
+                    break
+
+        file_lines = []
+        if self.current_file_path and os.path.exists(self.current_file_path):
+            try:
+                with open(self.current_file_path, "r") as f:
+                    for line in f:
+                        clean_line = line.rstrip("\r\n")
+                        file_lines.append((clean_line,))
+            except Exception as e:
+                file_lines.append((_("Error reading %s: %s" % (filename, str(e))),))
+        else:
+            file_lines.append((_("%s file not found in /etc/tuxbox/config/ hierarchy" % filename),))
+
+        self.list = file_lines
+        self["menu"].setList(self.list)
+
+    def loadOscamContent(self):
+        """Bound to Yellow button. Displays oscam.server content and updates key labels."""
+        self.setTitle(_("ServerEagleSat - OSCam Server Editor"))
+        self["key_yellow"].setText("[ active ] OSCam")
+        self["key_blue"].setText("NCam Server")
+        self.readServerFile("oscam.server")
+
+    def loadNcamContent(self):
+        """Bound to Blue button. Displays ncam.server content and updates key labels."""
+        self.setTitle(_("ServerEagleSat - NCam Server Editor"))
+        self["key_yellow"].setText("OSCam Server")
+        self["key_blue"].setText("[ active ] NCam")
+        self.readServerFile("ncam.server")
+
+    def keyOK(self):
+        """Opens VirtualKeyBoard with the selected line's text for inline modifications."""
+        if not self.list:
+            return
+
+        current_index = self["menu"].getIndex()
+        selected_item = self.list[current_index]
+        current_text = selected_item[0]
+
+        if "file not found" in current_text or "Error reading" in current_text:
+            return
+
+        self.session.openWithCallback(self.virtualKeyBoardCallback, VirtualKeyBoard, title=_("Edit Line Content:"), text=current_text)
+
+    def virtualKeyBoardCallback(self, callback_string):
+        """Applies configuration string edits only onto screen without touching the actual file yet."""
+        if callback_string is not None:
+            current_index = self["menu"].getIndex()
+            self.list[current_index] = (callback_string,)
+            self["menu"].setList(self.list)
+
+    def removeSelectedLine(self):
+        """Bound to Red button. Removes line from UI list and refreshes screen without file operations."""
+        if not self.list:
+            return
+
+        current_index = self["menu"].getIndex()
+        selected_item = self.list[current_index]
+        current_text = selected_item[0]
+
+        # Don't drop error warnings if no real file layout exists
+        if "file not found" in current_text or "Error reading" in current_text:
+            return
+
+        # Remove line sequence row element from virtual screen array
+        del self.list[current_index]
+
+        # Refresh component container update variables layout
+        self["menu"].setList(self.list)
+
+        # Keep selection pointer context locked nicely inside array length limits
+        if current_index >= len(self.list):
+            self["menu"].setIndex(max(0, len(self.list) - 1))
+
+    def saveChanges(self):
+        """Bound to Green button. Writes active list changes systematically back into the config file."""
+        if not self.current_file_path or not os.path.exists(self.current_file_path):
+            return
+
+        try:
+            output_content = ""
+            for item in self.list:
+                output_content += item[0] + "\n"
+
+            with open(self.current_file_path, "w") as f:
+                f.write(output_content)
+
+            from Screens.MessageBox import MessageBox
+            self.session.open(MessageBox, _("Changes successfully saved to %s!" % os.path.basename(self.current_file_path)), MessageBox.TYPE_INFO, timeout=3)
+        except Exception as e:
+            from Screens.MessageBox import MessageBox
+            self.session.open(MessageBox, _("Failed to save changes:\n%s" % str(e)), MessageBox.TYPE_ERROR)
 
     def loadBoxIcon(self):
         try:
@@ -152,9 +259,6 @@ class Eagle8(Screen):
         except Exception as e:
             print("SUBMENU ICON ERROR:", e)
 
-    def keyOK(self):
-        pass
-
     def keyNumberGlobal(self, number):
         if number == 0:
             self.session.open(Console, _("Updating..."), [
@@ -165,9 +269,6 @@ class Eagle8(Screen):
         self.close()
 
     def iptv(self): pass
-    def cccam(self): pass
-    def grid(self): pass
-    def scriptslist(self): pass
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
