@@ -78,7 +78,7 @@
                 MultiContentEntryText(pos = (15, 5), size = (1130, 30), font = 0, flags = RT_HALIGN_LEFT, text = 0)
             ],
             "fonts": [
-                gFont("Console", 22)
+                gFont("Console", 21)
             ],
             "itemHeight": 35
         }

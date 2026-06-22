@@ -78,7 +78,7 @@
                 MultiContentEntryText(pos = (690, 10), size = (480, 40), font = 1, flags = RT_HALIGN_LEFT, text = 2)
             ],
             "fonts": [
-                gFont("Console", 24),
+                gFont("Console", 21),
                 gFont("Regular", 20)
             ],
             "itemHeight": 60
@@ -89,13 +89,13 @@
     <widget name="boxicon" position="1230,808" size="520,140" zPosition="6" alphatest="blend" transparent="1" halign="center" valign="center" />
 
     <ePixmap position="183,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_red.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="233,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="Remove" position="233,830" size="190,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="443,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_green.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="493,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="SaveChanges" position="493,830" size="190,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="703,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_yellow.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="753,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="Modify" position="753,830" size="190,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="963,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_blue.png" transparent="1" alphatest="blend" />
     <eLabel text="AddKey" position="1013,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
