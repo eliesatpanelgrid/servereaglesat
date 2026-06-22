@@ -1,42 +1,33 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-
 from Plugins.Plugin import PluginDescriptor
 from Screens.Screen import Screen
 from enigma import getDesktop
-
 from .menus_list.mainhelpers import SystemInfo
 from .menus_list.compat import readFromFile
 from .menus_list.Console import Console
-
 import os
 import importlib
 from threading import Timer
-
 from Components.ActionMap import NumberActionMap
 from Components.Sources.StaticText import StaticText
 from Components.Sources.List import List
 from Components.Label import Label
 from Components.Pixmap import Pixmap
 from Components.Console import Console as iConsole
-
 from Tools.LoadPixmap import LoadPixmap
 from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
-
 from Plugins.Extensions.ServerEagleSat.__init__ import Version, Panel
-
 
 # ==========================
 # ABOUT PICTURE SCREEN
 # ==========================
 class ServerEagleSatAbout(Screen):
-    # Skin adjusted to your exact image specifications: 1254x1254 centered
     skin = """
         <screen name="ServerEagleSatAbout" position="center,center" size="1254,1254" title="About" flags="wfNoBorder">
             <widget name="about_pic" position="0,0" size="1254,1254" zPosition="1" alphatest="on" />
         </screen>
     """
-
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
@@ -60,12 +51,10 @@ class ServerEagleSatAbout(Screen):
         else:
             print("[ServerEagleSat] About image missing at:", path)
 
-
 # ==========================
 # MAIN SCREEN
 # ==========================
 class ServerEagleSat(Screen):
-
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
@@ -84,7 +73,6 @@ class ServerEagleSat(Screen):
             ["NumberActions"],
             {'0': self.keyNumberGlobal}
         )
-
         self["shortcuts"] = NumberActionMap(
             ["ShortcutActions", "WizardActions", "ColorActions", "HotkeyActions"],
             {
@@ -102,7 +90,6 @@ class ServerEagleSat(Screen):
         # UI
         self["left_bar"] = Label("\n".join(list("Version " + Version)))
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
-
         self["key_red"] = Label("Iptv Adder")
         self["key_green"] = Label("Cccam Adder")
         self["key_yellow"] = Label("News")
@@ -117,10 +104,12 @@ class ServerEagleSat(Screen):
         labels = ["MemoryLabel", "SwapLabel", "FlashLabel", "gstreamerLabel",
                   "pythonLabel", "CPULabel", "ipLabel", "macLabel",
                   "HardwareLabel", "ImageLabel", "KernelLabel",
-                  "EnigmaVersionLabel", "driverLabel", "internetLabel"]
+                  "EnigmaVersionLabel", "driverLabel", "internetLabel",
+                  "satellitesListLabel"]
 
         text = [_("Ram:"), _("Swap:"), _("Flash:"), _("Gst:"), _("Py:"), _("Prc:"),
-                _("IP address:"), _("Mac Address:"), _("Hdw:"), _("Img:"), _("Krn:"), _("Upd:"), _("Drv:"), _("Internet:")]
+                _("IP address:"), _("Mac Address:"), _("Hdw:"), _("Img:"), _("Krn:"), _("Upd:"), _("Drv:"), _("Internet:"),
+                _("                   Hispasat 30W (MEO, NOS), AMOS 4.0W (AMOS), Eutelsat 5W (Fransat, Bis TV), Thor 8.0W (Focus Sat, UPC Direct, Digi Romania/Hungary, Canal Digital), BulgariaSat 1.9E (Neo Sat), Eutelsat 9.0E (Discovery, MTVA), Hot Bird 13.0E (Vivacom Bulgaria, Polsat, NC+/Cyfra, SRG Swiss, Globalcast France, Eurosport, Discovery, Adult, Rai, Tuvisat, Mediaset Italy), Eutelsat 16.0E (Digitalb, Tring Sport, Max TV, SK, Antiksat, Pink, HRT, Hayat HD, TVR), Astra 19.0E (Sky Germany, TNT Sat France, Movistar, SRG Astra, ORF Austria, HD+), Astra 23.0E (Ziggo Nederland, TV Vlaanderen, Skylink), Astra 28.0E (Sky UK SD), Eutelsat 36.0E (NTV Plus), Hellas Sat 39.0E (Dolce Romania), Türksat 42.0E (D-Smart), TürkmenÄlem 52.5E (Big Bang), Express 80.0E (Telekarta).                   ")]
 
         for l, t in zip(labels, text):
             self[l] = StaticText(t)
@@ -129,7 +118,6 @@ class ServerEagleSat(Screen):
         values = ["memTotal", "swapTotal", "flashTotal", "device", "gstreamer", "python",
                   "Hardware", "Image", "CPU", "Kernel", "ipInfo", "macInfo",
                   "EnigmaVersion", "driver", "internet"]
-
         for v in values:
             self[v] = StaticText()
 
@@ -151,7 +139,6 @@ class ServerEagleSat(Screen):
         self.system_info.getGStreamerVersionString(self)
         self.system_info.network_info(self)
         self.system_info.intInfo(self)
-
         Timer(0.5, lambda: self.system_info.update_me(self)).start()
 
     # MENU
@@ -170,12 +157,10 @@ class ServerEagleSat(Screen):
             ("Show expiracy date", 10, _("عرض المدة المتبقية لإنتهاء اشتراك الشيرينج")),
             ("About", 11, _("About"))
         ]
-
         for name, idx, desc in items:
             img_path = "Extensions/ServerEagleSat/icons_list/menu/%s.png" % name
             img = LoadPixmap(cached=True, path=resolveFilename(SCOPE_PLUGINS, img_path))
             self.list.append((_(name), idx, desc, img))
-
         self["menu"].setList(self.list)
 
     # ICON
@@ -184,18 +169,14 @@ class ServerEagleSat(Screen):
             box = "default"
             if os.path.exists("/etc/hostname"):
                 box = open("/etc/hostname").read().strip().lower()
-
             folder = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/icons_list/boxicons/")
             icon = os.path.join(folder, "%s.png" % box)
-
             if not fileExists(icon):
                 icon = os.path.join(folder, "default.png")
-
             pix = LoadPixmap(cached=True, path=icon)
             if pix:
                 self["boxicon"].instance.setPixmap(pix)
                 self["boxicon"].show()
-
         except Exception as e:
             print("ICON ERROR:", e)
 
@@ -206,19 +187,15 @@ class ServerEagleSat(Screen):
         self.select_item(item)
 
     def select_item(self, item):
-        # Intercept option 11 (About) to render our direct image screen
         if item == 11:
             self.session.open(ServerEagleSatAbout)
             return
-
         try:
             module = importlib.import_module(
                 "Plugins.Extensions.ServerEagleSat.submenus_list.Eagle%d" % item
             )
-
             cls = getattr(module, "Eagle%d" % item)
             self.session.open(cls)
-
         except Exception as e:
             print("PLUGIN LOAD ERROR:", e)
 
@@ -241,13 +218,11 @@ class ServerEagleSat(Screen):
             "wget --no-check-certificate https://gitlab.com/eliesat/scripts/-/raw/main/check/_check-all.sh -qO - | /bin/sh"
         ])
 
-
 # ==========================
 # PLUGIN ENTRY
 # ==========================
 def main(session, **kwargs):
     session.open(ServerEagleSat)
-
 
 def Plugins(**kwargs):
     return [
