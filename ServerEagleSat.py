@@ -145,16 +145,16 @@ class ServerEagleSat(Screen):
     def mList(self):
         self.list = []
         items = [
+            ("Install emus", 5, _("تنزيل و تثبيت الإيميوهات")),
+            ("Install softcam", 6, _("تنزيل و تثبيت ملف السوفتكام")),
+            ("Install astra-sm", 7, _("تنزيل و تثييت الباكجات الخاصة بالمالتي ستريم")),
             ("Add reader", 1, _("كتابة إشتراك شيرينج و إضافة ريدر")),
             ("Live oscam status", 2, _("عرض حالة الأوسكام")),
             ("Live ncam status", 3, _("عرض حالة الأنكام")),
-            ("Live softcam file", 4, _("عرض ملف السوفتكام")),
-            ("Download install emus", 5, _("تنزيل و تثبيت الإيميوهات")),
-            ("Download install softcam", 6, _("تنزيل و تثبيت ملف السوفتكام")),
-            ("Remove emus", 7, _("حذف الإيميوهات")),
-            ("Show emus files", 8, _("تصفح ملفات الإميوهات")),
-            ("Show log file", 9, _(" عرض ملف اللوج")),
-            ("Show expiracy date", 10, _("عرض المدة المتبقية لإنتهاء اشتراك الشيرينج")),
+            ("Preview softcam file", 4, _("تصفح ملف السوفتكام و التعديل فيه")),
+            ("Preview emus files", 8, _("تصفح ملفي الاوسكام الانكام سيرفر و التعديل فيهم")),
+            ("Preview log file", 9, _(" تصفح ملف اللوج")),
+            ("Preview expiracy date", 10, _("تصفح المدة المتبقية لإنتهاء اشتراك (سيرفر ايجل)")),
             ("About", 11, _("About"))
         ]
         for name, idx, desc in items:
