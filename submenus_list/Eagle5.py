@@ -133,26 +133,41 @@ class Eagle5(Screen):
             print("[ServerEagleSat Submenu] Network Target Mapping Failure:", e)
 
     def mList(self):
-        """Populates menu list items in standard direct flat layout tuple form"""
+        """Populates menu list items with specific icons based on their names"""
         self.list = []
         items = [
-            ("Ncam", 1, _("Fairbid")),
-            ("Oscam", 2, _("Levi45")),
-            ("Oscam", 3, _("Mohamed_os")),
-            ("Gosatplus-oscam", 4, _("Mohamed_os")),
-            ("Powercam-oscam", 5, _("Mohamed_os")),
-            ("Supcam-oscam", 6, _("Mohamed_os")),
-            ("Ultracam-oscam", 7, _("Mohamed_os"))
+            ("Ncam", 1, _("Fairbird تنزيل و تثبيت ايميو")),
+            ("Oscam", 2, _("Levi45 تنزيل و تثبيت ايميو")),
+            ("Oscam", 3, _("Mohamed_os تنزيل و تثبيت ايميو")),
+            ("Gosatplus-oscam", 4, _("Mohamed_os تنزيل و تثبيت ايميو")),
+            ("Powercam-oscam", 5, _("Mohamed_os تنزيل و تثبيت ايميو")),
+            ("Supcam-oscam", 6, _("Mohamed_os تنزيل و تثبيت ايميو")),
+            ("Ultracam-oscam", 7, _("Mohamed_os تنزيل و تثبيت ايميو"))
         ]
         
-        img_path = "Extensions/ServerEagleSat/icons_list/menu/biss.png"
-        img = LoadPixmap(cached=True, path=resolveFilename(SCOPE_PLUGINS, img_path))
+        # Base folder path for the icons
+        base_path = "Extensions/ServerEagleSat/icons_list/menu/"
         
-        # Switched to direct flat structure: (Name, ID, Description, IconPixmap)
         for name, idx, desc in items:
+            # 1. Choose the correct icon name based on your condition
+            if name == "Ncam":
+                img_name = "ncam.png"
+            else:
+                img_name = "oscam.png"
+                
+            # 2. Resolve the full absolute path safely
+            full_path = resolveFilename(SCOPE_PLUGINS, base_path + img_name)
+            
+            # 3. Fallback check: Use default if file is missing physically from the path
+            if not fileExists(full_path):
+                print(f"[ServerEagleSat] Warning: Icon file missing at {full_path}")
+            
+            # 4. Load the Pixmap and append to your list
+            img = LoadPixmap(cached=True, path=full_path)
             self.list.append((_(name), idx, desc, img))
         
         self["menu"].setList(self.list)
+
 
     def loadBoxIcon(self):
         try:
