@@ -30,7 +30,22 @@ class Eagle6(Screen):
         Screen.__init__(self, session)
         self.session = session
 
-        # Read layout template
+        # Consolidated list of all standard and variant softcam directories
+        self.target_dirs = [
+            "/etc/tuxbox/config",
+            "/etc/tuxbox/config/ncam",
+            "/etc/tuxbox/config/ncam-icam",
+            "/etc/tuxbox/config/oscam",
+            "/etc/tuxbox/config/oscam-emu",
+            "/etc/tuxbox/config/oscam-master",
+            "/etc/tuxbox/config/oscam-smod",
+            "/etc/tuxbox/config/oscam-icam",
+            "/etc/tuxbox/config/oscamicamnew",
+            "/etc/tuxbox/config/oscamicamall",
+            "/usr/keys"
+        ]
+
+        # Read layout template safely
         try:
             skin_file = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/skins_list/eagle6-fhd.xml")
             with open(skin_file, "r") as f:
@@ -66,12 +81,12 @@ class Eagle6(Screen):
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
 
         # COLOR KEYS LABELS
-        self["key_red"] = Label("Iptv Adder")
-        self["key_green"] = Label("Cccam Adder")
+        self["key_red"] = Label("Remove Keys")
+        self["key_green"] = Label("Install Keys")
         self["key_yellow"] = Label("News")
         self["key_blue"] = Label("Scripts")
 
-        # MENU
+        # MENU INITIALIZATION
         self.list = []
         self["menu"] = List(self.list)
 
@@ -101,10 +116,9 @@ class Eagle6(Screen):
 
     def loadScreenData(self):
         """Fires safely after layout finishes rendering to paint all fields simultaneously."""
-        # 1. Render STB Graphic Icon
         self.loadBoxIcon()
+        self.mList()
 
-        # 2. POPULATE HARDWARE METRICS (Restores RAM, Swap, Flash, Gst, Python, Image, etc.)
         try:
             self.system_info.memInfo(self)
             self.system_info.FlashMem(self)
@@ -116,13 +130,10 @@ class Eagle6(Screen):
         except Exception as e:
             print("[ServerEagleSat Submenu] Hardware Specifications Load Failure:", e)
 
-        # 3. DIRECT COLD EXECUTION FOR NETWORK VALUES (Maintains working network headers)
         try:
-            # Render local system IP string
             local_ip = get_local_ip()
             self["ipInfo"].setText(str(local_ip))
 
-            # Render outside internet authentication string
             net_status = check_internet()
             if net_status == "Online":
                 self["internet"].setText(_("Connected"))
@@ -130,6 +141,27 @@ class Eagle6(Screen):
                 self["internet"].setText(_("Disconnected"))
         except Exception as e:
             print("[ServerEagleSat Submenu] Network Target Mapping Failure:", e)
+
+    def mList(self):
+        """Populates menu list items in standard direct flat layout tuple form"""
+        self.list = []
+        items = [
+            ("Enigma1969", 1, _(" تنزيل و تثبيت ملف الشفرات و مفاتيح البيسس")),
+            ("Novaler4k", 2, _(" تنزيل و تثبيت ملف الشفرات و مفاتيح البيسس")),
+            ("Mohamed_Nasr", 3, _(" تنزيل و تثبيت ملف الشفرات و مفاتيح البيسس")),
+            ("Mohamed_os", 4, _(" تنزيل و تثبيت ملف الشفرات و مفاتيح البيسس")),
+            ("Serjoga", 5, _(" تنزيل و تثبيت ملف الشفرات و مفاتيح البيسس")),
+            ("Softcam.org", 6, _(" تنزيل و تثبيت ملف الشفرات و مفاتيح البيسس")),
+            ("Smcam", 7, _(" تنزيل و تثبيت ملف الشفرات و مفاتيح البيسس"))
+        ]
+        
+        img_path = "Extensions/ServerEagleSat/icons_list/menu/biss.png"
+        img = LoadPixmap(cached=True, path=resolveFilename(SCOPE_PLUGINS, img_path))
+        
+        for name, idx, desc in items:
+            self.list.append((_(name), idx, desc, img))
+        
+        self["menu"].setList(self.list)
 
     def loadBoxIcon(self):
         try:
@@ -153,7 +185,51 @@ class Eagle6(Screen):
             print("SUBMENU ICON ERROR:", e)
 
     def keyOK(self):
-        pass
+        current = self["menu"].getCurrent()
+        if current:
+            item_id = current[1]
+            print("[ServerEagleSat Eagle6] Selected item ID:", item_id)
+            
+            # Helper to generate multi-directory installation commands dynamically
+            def get_download_cmd(url):
+                cmds = []
+                cmds.append("wget --no-check-certificate \"{}\" -O /tmp/SoftCam.Key".format(url))
+                for path in self.target_dirs:
+                    cmds.append("if [ -d {0} ]; then cp /tmp/SoftCam.Key {0}/SoftCam.Key; chmod 644 {0}/SoftCam.Key; fi".format(path))
+                cmds.append("rm -f /tmp/SoftCam.Key")
+                cmds.append("echo '====================================='")
+                cmds.append("echo '  SoftCam.Key Updated Successfully! '")
+                cmds.append("echo '====================================='")
+                return cmds
+
+            # WIRING TARGET WGET LINKS TO SELECTION INDEXES
+            if item_id == 1:
+                url = "https://docs.google.com/uc?export=download&id=1aujij43w7qAyPHhfBLAN9sE-BZp8_AwI"
+                self.session.open(Console, _("Updating Enigma1969 Keys..."), get_download_cmd(url))
+                
+            elif item_id == 2:
+                url = "http://novaler.homelinux.com/SoftCam.Key"
+                self.session.open(Console, _("Updating Novaler4k Keys..."), get_download_cmd(url))
+                
+            elif item_id == 3:
+                url = "https://raw.githubusercontent.com/popking159/softcam/master/SoftCam.Key"
+                self.session.open(Console, _("Updating Mohamed Nasr Keys..."), get_download_cmd(url))
+                
+            elif item_id == 4:
+                url = "https://raw.githubusercontent.com/MOHAMED19OS/SoftCam_Emu/main/SoftCam.Key"
+                self.session.open(Console, _("Updating Mohamed_os Keys..."), get_download_cmd(url))
+                
+            elif item_id == 5:
+                url = "http://raw.githubusercontent.com/audi06/SoftCam.Key_Serjoga/master/SoftCam.Key"
+                self.session.open(Console, _("Updating Serjoga Keys..."), get_download_cmd(url))
+                
+            elif item_id == 6:
+                url = "http://www.softcam.org/deneme6.php?file=SoftCam.Key"
+                self.session.open(Console, _("Updating Softcam.org Keys..."), get_download_cmd(url))
+                
+            elif item_id == 7:
+                url = "https://raw.githubusercontent.com/smcam/s/main/SoftCam.Key"
+                self.session.open(Console, _("Updating Smcam Keys..."), get_download_cmd(url))
 
     def keyNumberGlobal(self, number):
         if number == 0:
@@ -164,8 +240,22 @@ class Eagle6(Screen):
     def exit(self):
         self.close()
 
-    def iptv(self): pass
-    def cccam(self): pass
+    def iptv(self):
+        """Red Button - Removes SoftCam.Key from all designated locations safely."""
+        cmds = []
+        cmds.append("rm -f /tmp/SoftCam.Key")
+        for path in self.target_dirs:
+            cmds.append("if [ -f {0}/SoftCam.Key ]; then rm -f {0}/SoftCam.Key; echo 'Removed from: {0}'; fi".format(path))
+        cmds.append("echo '====================================='")
+        cmds.append("echo '  SoftCam.Key Cleanup Finished!     '")
+        cmds.append("echo '====================================='")
+        
+        self.session.open(Console, _("Removing SoftCam files..."), cmds)
+
+    def cccam(self):
+        """Green Button - Acts exactly like the OK button."""
+        self.keyOK()
+
     def grid(self): pass
     def scriptslist(self): pass
 
