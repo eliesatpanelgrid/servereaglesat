@@ -136,7 +136,7 @@ class Eagle7(Screen):
         """Populates menu list items in standard direct flat layout tuple form"""
         self.list = []
         items = [
-            ("Astra-sm", 1, _(" تنزيل و تثبيت الباكاج من فيد الصوؤة")),
+            ("Astra-sm", 1, _(" تنزيل و تثبيت الباكاج من فيد الصورة")),
             ("Ciefp-addons", 2, _(" تنزيل و تثبيت ملف الكونفيج و الاعدادات الخاصة ببافل سييف")),
         ]
         
