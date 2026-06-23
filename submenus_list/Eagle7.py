@@ -140,7 +140,7 @@ class Eagle7(Screen):
             ("Ciefp-addons", 2, _(" تنزيل و تثبيت ملف الكونفيج و الاعدادات الخاصة ببافل سييف")),
         ]
         
-        img_path = "Extensions/ServerEagleSat/icons_list/menu/biss.png"
+        img_path = "Extensions/ServerEagleSat/icons_list/menu/multi.png"
         img = LoadPixmap(cached=True, path=resolveFilename(SCOPE_PLUGINS, img_path))
         
         # Switched to direct flat structure: (Name, ID, Description, IconPixmap)
