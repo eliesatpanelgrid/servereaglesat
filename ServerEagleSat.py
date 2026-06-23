@@ -151,10 +151,10 @@ class ServerEagleSat(Screen):
             ("Add reader", 1, _("كتابة إشتراك شيرينج و إضافة ريدر")),
             ("Live oscam status", 2, _("عرض حالة الأوسكام")),
             ("Live ncam status", 3, _("عرض حالة الأنكام")),
-            ("Preview softcam file", 4, _("تصفح ملف السوفتكام و التعديل فيه")),
-            ("Preview emus files", 8, _("تصفح ملفي الاوسكام الانكام سيرفر و التعديل فيهم")),
-            ("Preview log file", 9, _(" تصفح ملف اللوج")),
-            ("Preview expiracy date", 10, _("تصفح المدة المتبقية لإنتهاء اشتراك (سيرفر ايجل)")),
+            ("Preview softcam file", 4, _("معاينة ملف السوفتكام و التعديل فيه")),
+            ("Preview emus files", 8, _("معاينة ملفي الاوسكام الانكام سيرفر و التعديل فيهما")),
+            ("Preview log file", 9, _(" معاينة ملف اللوج")),
+            ("Preview expiracy date", 10, _("معاينة المدة المتبقية لإنتهاء اشتراك (سيرفر ايجل)")),
             ("About", 11, _("About"))
         ]
         for name, idx, desc in items:
