@@ -30,7 +30,7 @@ class Eagle5(Screen):
         Screen.__init__(self, session)
         self.session = session
 
-        # Read layout template
+        # Read layout template safely
         try:
             skin_file = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/skins_list/eagle5-fhd.xml")
             with open(skin_file, "r") as f:
@@ -71,7 +71,7 @@ class Eagle5(Screen):
         self["key_yellow"] = Label("News")
         self["key_blue"] = Label("Scripts")
 
-        # MENU
+        # MENU INITIALIZATION
         self.list = []
         self["menu"] = List(self.list)
 
@@ -104,7 +104,10 @@ class Eagle5(Screen):
         # 1. Render STB Graphic Icon
         self.loadBoxIcon()
 
-        # 2. POPULATE HARDWARE METRICS (Restores RAM, Swap, Flash, Gst, Python, Image, etc.)
+        # 2. POPULATE THE INTERACTIVE MENU ROWS
+        self.mList()
+
+        # 3. POPULATE HARDWARE METRICS
         try:
             self.system_info.memInfo(self)
             self.system_info.FlashMem(self)
@@ -116,13 +119,11 @@ class Eagle5(Screen):
         except Exception as e:
             print("[ServerEagleSat Submenu] Hardware Specifications Load Failure:", e)
 
-        # 3. DIRECT COLD EXECUTION FOR NETWORK VALUES (Maintains working network headers)
+        # 4. DIRECT SAFELY-ISOLATED NETWORK VALUE HOOKS
         try:
-            # Render local system IP string
             local_ip = get_local_ip()
             self["ipInfo"].setText(str(local_ip))
 
-            # Render outside internet authentication string
             net_status = check_internet()
             if net_status == "Online":
                 self["internet"].setText(_("Connected"))
@@ -130,6 +131,28 @@ class Eagle5(Screen):
                 self["internet"].setText(_("Disconnected"))
         except Exception as e:
             print("[ServerEagleSat Submenu] Network Target Mapping Failure:", e)
+
+    def mList(self):
+        """Populates menu list items in standard direct flat layout tuple form"""
+        self.list = []
+        items = [
+            ("Ncam", 1, _("Fairbid")),
+            ("Oscam", 2, _("Levi45")),
+            ("Oscam", 3, _("Mohamed_os")),
+            ("Gosatplus-oscam", 4, _("Mohamed_os")),
+            ("Powercam-oscam", 5, _("Mohamed_os")),
+            ("Supcam-oscam", 6, _("Mohamed_os")),
+            ("Ultracam-oscam", 7, _("Mohamed_os"))
+        ]
+        
+        img_path = "Extensions/ServerEagleSat/icons_list/menu/biss.png"
+        img = LoadPixmap(cached=True, path=resolveFilename(SCOPE_PLUGINS, img_path))
+        
+        # Switched to direct flat structure: (Name, ID, Description, IconPixmap)
+        for name, idx, desc in items:
+            self.list.append((_(name), idx, desc, img))
+        
+        self["menu"].setList(self.list)
 
     def loadBoxIcon(self):
         try:
@@ -153,7 +176,15 @@ class Eagle5(Screen):
             print("SUBMENU ICON ERROR:", e)
 
     def keyOK(self):
-        pass
+        current = self["menu"].getCurrent()
+        if current:
+            # Safely grab the ID index directly from flat selection structure
+            item_id = current[1]
+            print("[ServerEagleSat Eagle6] Selected item ID:", item_id)
+            
+            # Put your execute macros here cleanly:
+            # if item_id == 1:
+            #     self.session.open(Console, _("Installing..."), ["command"])
 
     def keyNumberGlobal(self, number):
         if number == 0:
