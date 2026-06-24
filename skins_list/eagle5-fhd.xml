@@ -67,7 +67,7 @@
     </widget>
 
     <eLabel position="56,127" size="525,41" zPosition="3" backgroundColor="#000000" />
-    <eLabel text="Not Available5 ..." position="370,127" size="525,51" zPosition="4" font="Bold;32" halign="center" valign="center" foregroundColor="#E6BE3A" backgroundColor="#000000" />
+    <eLabel text="Emus Installation" position="370,127" size="525,51" zPosition="4" font="Bold;32" halign="center" valign="center" foregroundColor="#E6BE3A" backgroundColor="#000000" />
 
     <widget source="menu" render="Listbox" position="52,200" size="1161,600" backgroundColorSelected="#2A2A2A" listOrientation="vertical" itemHeight="60" scrollbarMode="showOnDemand" transparent="1" noWrap="0">
         <convert type="TemplatedMultiContent">
@@ -89,15 +89,15 @@
     <widget name="boxicon" position="1230,808" size="520,140" zPosition="6" alphatest="blend" transparent="1" halign="center" valign="center" />
 
     <ePixmap position="183,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_red.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="233,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="Remove" position="233,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="443,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_green.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="493,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="Install" position="493,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="703,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_yellow.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="753,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="SecretFeed" position="753,830" size="190,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="963,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_blue.png" transparent="1" alphatest="blend" />
-    <eLabel text="N/A" position="1013,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="PluginBrowser" position="1013,830" size="190,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
 </screen>
