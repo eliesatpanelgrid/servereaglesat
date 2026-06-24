@@ -55,7 +55,7 @@ class Eagle5(Screen):
                 "back": self.exit,
                 "red": self.iptv,
                 "info": self.infoKey,
-                "green": self.cccam,
+                "green": self.cccam,  # Maps to the green execution command
                 "yellow": self.grid,
                 "blue": self.scriptslist,
             }
@@ -67,7 +67,7 @@ class Eagle5(Screen):
 
         # COLOR KEYS LABELS
         self["key_red"] = Label("Iptv Adder")
-        self["key_green"] = Label("Cccam Adder")
+        self["key_green"] = Label("Install Emu")
         self["key_yellow"] = Label("News")
         self["key_blue"] = Label("Scripts")
 
@@ -101,13 +101,9 @@ class Eagle5(Screen):
 
     def loadScreenData(self):
         """Fires safely after layout finishes rendering to paint all fields simultaneously."""
-        # 1. Render STB Graphic Icon
         self.loadBoxIcon()
-
-        # 2. POPULATE THE INTERACTIVE MENU ROWS
         self.mList()
 
-        # 3. POPULATE HARDWARE METRICS
         try:
             self.system_info.memInfo(self)
             self.system_info.FlashMem(self)
@@ -119,7 +115,6 @@ class Eagle5(Screen):
         except Exception as e:
             print("[ServerEagleSat Submenu] Hardware Specifications Load Failure:", e)
 
-        # 4. DIRECT SAFELY-ISOLATED NETWORK VALUE HOOKS
         try:
             local_ip = get_local_ip()
             self["ipInfo"].setText(str(local_ip))
@@ -145,29 +140,23 @@ class Eagle5(Screen):
             ("Ultracam-oscam", 7, _("Mohamed_os تنزيل و تثبيت ايميو"))
         ]
         
-        # Base folder path for the icons
         base_path = "Extensions/ServerEagleSat/icons_list/menu/"
         
         for name, idx, desc in items:
-            # 1. Choose the correct icon name based on your condition
             if name == "Ncam":
                 img_name = "ncam.png"
             else:
                 img_name = "oscam.png"
                 
-            # 2. Resolve the full absolute path safely
             full_path = resolveFilename(SCOPE_PLUGINS, base_path + img_name)
             
-            # 3. Fallback check: Use default if file is missing physically from the path
             if not fileExists(full_path):
                 print(f"[ServerEagleSat] Warning: Icon file missing at {full_path}")
             
-            # 4. Load the Pixmap and append to your list
             img = LoadPixmap(cached=True, path=full_path)
             self.list.append((_(name), idx, desc, img))
         
         self["menu"].setList(self.list)
-
 
     def loadBoxIcon(self):
         try:
@@ -190,16 +179,43 @@ class Eagle5(Screen):
         except Exception as e:
             print("SUBMENU ICON ERROR:", e)
 
-    def keyOK(self):
+    def runScript(self):
+        """Dynamic router targeting user-chosen emu installer files"""
         current = self["menu"].getCurrent()
-        if current:
-            # Safely grab the ID index directly from flat selection structure
-            item_id = current[1]
-            print("[ServerEagleSat Eagle6] Selected item ID:", item_id)
-            
-            # Put your execute macros here cleanly:
-            # if item_id == 1:
-            #     self.session.open(Console, _("Installing..."), ["command"])
+        if not current:
+            return
+
+        item_id = current[1]
+        emu_name = current[0]
+        script_url = ""
+
+        # Map index IDs cleanly to target remote script elements
+        if item_id == 1:
+            script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/fairbird/ncam.sh"
+        elif item_id == 2:
+            script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/levi45/oscam.sh"
+        elif item_id == 3:
+            script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/mohamed_os/oscam.sh"
+        elif item_id == 4:
+            script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/mohamed_os/gosatplus-oscam.sh"
+        elif item_id == 5:
+            script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/mohamed_os/powercam-oscam.sh"
+        elif item_id == 6:
+            script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/mohamed_os/supcam-oscam.sh"
+        elif item_id == 7:
+            script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/mohamed_os/ultracam-oscam.sh"
+
+        if script_url:
+            cmd = f"wget --no-check-certificate {script_url} -qO - | /bin/sh"
+            title = _(f"Installing {emu_name}...")
+            self.session.open(Console, title, [cmd])
+
+    def keyOK(self):
+        self.runScript()
+
+    def cccam(self):
+        # Green button triggers the script installation too
+        self.runScript()
 
     def keyNumberGlobal(self, number):
         if number == 0:
@@ -211,7 +227,6 @@ class Eagle5(Screen):
         self.close()
 
     def iptv(self): pass
-    def cccam(self): pass
     def grid(self): pass
     def scriptslist(self): pass
 

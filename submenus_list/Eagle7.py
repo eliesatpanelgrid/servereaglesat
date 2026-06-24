@@ -67,7 +67,7 @@ class Eagle7(Screen):
 
         # COLOR KEYS LABELS
         self["key_red"] = Label("Iptv Adder")
-        self["key_green"] = Label("Cccam Adder")
+        self["key_green"] = Label("Install")
         self["key_yellow"] = Label("News")
         self["key_blue"] = Label("Scripts")
 
@@ -101,13 +101,9 @@ class Eagle7(Screen):
 
     def loadScreenData(self):
         """Fires safely after layout finishes rendering to paint all fields simultaneously."""
-        # 1. Render STB Graphic Icon
         self.loadBoxIcon()
-
-        # 2. POPULATE THE INTERACTIVE MENU ROWS
         self.mList()
 
-        # 3. POPULATE HARDWARE METRICS
         try:
             self.system_info.memInfo(self)
             self.system_info.FlashMem(self)
@@ -119,7 +115,6 @@ class Eagle7(Screen):
         except Exception as e:
             print("[ServerEagleSat Submenu] Hardware Specifications Load Failure:", e)
 
-        # 4. DIRECT SAFELY-ISOLATED NETWORK VALUE HOOKS
         try:
             local_ip = get_local_ip()
             self["ipInfo"].setText(str(local_ip))
@@ -143,7 +138,6 @@ class Eagle7(Screen):
         img_path = "Extensions/ServerEagleSat/icons_list/menu/multi.png"
         img = LoadPixmap(cached=True, path=resolveFilename(SCOPE_PLUGINS, img_path))
         
-        # Switched to direct flat structure: (Name, ID, Description, IconPixmap)
         for name, idx, desc in items:
             self.list.append((_(name), idx, desc, img))
         
@@ -173,13 +167,28 @@ class Eagle7(Screen):
     def keyOK(self):
         current = self["menu"].getCurrent()
         if current:
-            # Safely grab the ID index directly from flat selection structure
             item_id = current[1]
-            print("[ServerEagleSat Eagle6] Selected item ID:", item_id)
+            name = current[0]
             
-            # Put your execute macros here cleanly:
-            # if item_id == 1:
-            #     self.session.open(Console, _("Installing..."), ["command"])
+            if item_id == 1:
+                # Dynamic architecture manager logic for package installations
+                if os.path.exists("/usr/bin/apt-get") or os.path.exists("/var/lib/dpkg"):
+                    cmd = "apt-get update && apt-get install astra-sm -y"
+                else:
+                    cmd = "opkg update && opkg install astra-sm"
+                
+                self.session.open(Console, _(f"Installing {name}..."), [cmd])
+                
+            elif item_id == 2:
+                # Transformed raw path linking directly to target bash code file
+                script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/astra-sm/astra-sm.sh"
+                cmd = f"wget --no-check-certificate {script_url} -qO - | /bin/sh"
+                
+                self.session.open(Console, _(f"Executing {name} script..."), [cmd])
+
+    def cccam(self):
+        # Green button mirrors OK key logic execution flow
+        self.keyOK()
 
     def keyNumberGlobal(self, number):
         if number == 0:
@@ -191,7 +200,6 @@ class Eagle7(Screen):
         self.close()
 
     def iptv(self): pass
-    def cccam(self): pass
     def grid(self): pass
     def scriptslist(self): pass
 
