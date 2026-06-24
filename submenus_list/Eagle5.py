@@ -7,9 +7,9 @@ from enigma import getDesktop
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
 # Import your standalone network helpers
 from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet
-from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
 
 import os
+import subprocess
 from threading import Timer
 
 from Components.ActionMap import NumberActionMap
@@ -21,6 +21,9 @@ from Components.Pixmap import Pixmap
 from Tools.LoadPixmap import LoadPixmap
 from Tools.Directories import fileExists, resolveFilename, SCOPE_PLUGINS
 
+# Import native Message Box components for interactive questions
+from Screens.MessageBox import MessageBox
+
 from Plugins.Extensions.ServerEagleSat.__init__ import Version, Panel
 
 
@@ -29,6 +32,16 @@ class Eagle5(Screen):
     def __init__(self, session):
         Screen.__init__(self, session)
         self.session = session
+
+        # CRITICAL BUGFIX: Automatically create the file that causes the Kitte888 skin converter to crash
+        try:
+            log_path = "/tmp/kitte888-cs_Ecm_Reader.log"
+            if not os.path.exists(log_path):
+                with open(log_path, "w") as f:
+                    f.write("Eagle5 Crash Protection Active\n")
+                os.chmod(log_path, 0o777)
+        except Exception as e:
+            print("[ServerEagleSat] Failed to inject skin crash protection patch:", e)
 
         # Read layout template safely
         try:
@@ -53,11 +66,11 @@ class Eagle5(Screen):
                 "ok": self.keyOK,
                 "cancel": self.exit,
                 "back": self.exit,
-                "red": self.iptv,
+                "red": self.removeAllCams,       # Redirect red button to uninstaller
                 "info": self.infoKey,
-                "green": self.cccam,  # Maps to the green execution command
+                "green": self.scriptslist,       # Green maps to scripts list
                 "yellow": self.grid,
-                "blue": self.scriptslist,
+                "blue": self.openPluginBrowser,   # Blue maps to direct plugin installation
             }
         )
 
@@ -66,10 +79,10 @@ class Eagle5(Screen):
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
 
         # COLOR KEYS LABELS
-        self["key_red"] = Label("Iptv Adder")
-        self["key_green"] = Label("Install Emu")
+        self["key_red"] = Label("Remove All Cams")  # Updated layout text
+        self["key_green"] = Label("Scripts")
         self["key_yellow"] = Label("News")
-        self["key_blue"] = Label("Scripts")
+        self["key_blue"] = Label(_("Install Plugins"))
 
         # MENU INITIALIZATION
         self.list = []
@@ -189,7 +202,6 @@ class Eagle5(Screen):
         emu_name = current[0]
         script_url = ""
 
-        # Map index IDs cleanly to target remote script elements
         if item_id == 1:
             script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/fairbird/ncam.sh"
         elif item_id == 2:
@@ -206,19 +218,131 @@ class Eagle5(Screen):
             script_url = "https://raw.githubusercontent.com/eliesatpanelgrid/oe2.0/main/softcams/mohamed_os/ultracam-oscam.sh"
 
         if script_url:
+            from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
             cmd = f"wget --no-check-certificate {script_url} -qO - | /bin/sh"
             title = _(f"Installing {emu_name}...")
             self.session.open(Console, title, [cmd])
 
+    def removeAllCams(self):
+        """Phase 1: Pure background scanning and extraction across all image builds (DreamOS and OpenAlliance)"""
+        packages_list = [
+            "enigma2-plugin-softcams-ultracam-oscam", "enigma2-plugin-softcams-ultracam-ncam",
+            "enigma2-plugin-softcams-gosatplus-oscam", "enigma2-plugin-softcams-gosatplus-ncam",
+            "enigma2-plugin-softcams-oscam-icam", "enigma2-plugin-softcams-ncam-icam",
+            "enigma2-plugin-softcams-icam-oscam", "enigma2-plugin-softcams-powecam-oscam",
+            "enigma2-plugin-softcams-powercam-oscam", "enigma2-plugin-softcams-powercam-ncam",
+            "enigma2-plugin-softcams-icam-ncam", "enigma2-plugin-softcams-supcam-oscam",
+            "enigma2-plugin-softcams-supcam-ncam", "enigma2-plugin-softcams-oscam-all-images",
+            "enigma2-plugin-softcams-oscam-emu-levi45", "enigma2-plugin-softcams-oscamicamall",
+            "enigma2-plugin-softcams-gosatplusv2-oscam", "enigma2-plugin-softcams-oscam",
+            "enigma2-plugin-softcams-oscamicam", "enigma2-plugin-softcams-oscamicamnew",
+            "enigma2-plugin-softcams-oscam-emu", "enigma2-plugin-softcams-oscam-sks",
+            "enigma2-softcams-oscam-all-images", "enigma2-plugin-softcams-oscam-t2mi",
+            "enigma2-plugin-cams-oscam", "enigma2-plugin-extensions-oscamstatus",
+            "enigma2-plugin-softcams-ncam", "enigma2-plugin-softcams-revcamv2-ncam",
+            "enigma2-plugin-softcams-gosatplusv2-ncam", "enigma2-plugin-cams-ncam",
+            "enigma2-softcams-cccam-images", "enigma2-softcams-cccam",
+            "enigma2-plugin-softcams-cccam", "enigma2-plugin-softcams-cccam-2.3.9",
+            "enigma2-plugin-softcams-mgcamd", "enigma2-plugin-softcams-mgcamd-1.45c",
+            "enigma2-plugin-softcams-gosatplus2", "enigma2-plugin-softcams-powercam",
+            "enigma2-plugin-softcams-revcamv2", "enigma2-plugin-softcams-gbox",
+            "enigma2-plugin-softcams-supcam", "enigma2-plugin-softcams-ghostcam",
+            "enigma2-plugin-softcams-ultracam", "enigma2-plugin-softcams-camofs"
+        ]
+
+        # 1. Kill active softcam binary processes natively
+        os.system('for emu in oscam Ncam ncam powercam powecam cccam CCcam mgcamd gbox supCam supcam ultracam ultracam-oscam ultracam-ncam oscamicam icam; do killall -9 "$emu" >/dev/null 2>&1; pkill -9 -f "$emu" >/dev/null 2>&1; done')
+        
+        # 2. Complete pure direct filesystem binary purge
+        os.system('for path in /usr/bin /usr/bin/cam /usr/camd /usr/emu /usr/softcams /var/emu /usr/scr /usr/scr/cam /var/scr /var/bin; do if [ -d "$path" ]; then for file in OSCam* oscam* ncam* Ncam* powercam* powecam* oscamicam* CCcam* cccam* mgcamd* gbox* supcam* supCam* revcam* ultracam* icam*; do rm -rf "$path/$file" >/dev/null 2>&1; done; fi; done')
+        os.system("rm -rf /etc/ncam* /etc/tuxbox/config/oscam* /etc/tuxbox/config/ncam* /etc/tuxbox/config/gbox* /usr/keys/* /usr/camscript/Ncam* /usr/emu_scripts/EGcam* /etc/init.d/softcam* /usr/emu/start/*emu /usr/LTCAM/*ncam.sh /etc/*emu.emu > /dev/null 2>&1")
+        os.system('for spath in /usr/script /usr/camscript /usr/emuscript /usr/script/cam /etc/cam.d /usr/emu_scripts; do if [ -d "$spath" ]; then rm -rf "$spath"/*cam.sh "$spath"/*em.sh "$spath"/*emu "$spath"/*Oscam* "$spath"/*OSCam* "$spath"/*OScam* "$spath"/*ncam* "$spath"/*Ncam* "$spath"/*NCam* "$spath"/*gbox* "$spath"/*mgcamd* > /dev/null 2>&1; fi; done')
+
+        # Re-ensure file generation so skin component doesn't crash during uninstallation transitions
+        try:
+            with open("/tmp/kitte888-cs_Ecm_Reader.log", "w") as f:
+                f.write("Eagle5 Crash Protection Active\n")
+            os.chmod("/tmp/kitte888-cs_Ecm_Reader.log", 0o777)
+        except Exception:
+            pass
+
+        # 3. Detect architecture manager types and discover installed packages matching our target list
+        is_dreamos = os.path.exists("/usr/bin/apt-get") or os.path.exists("/usr/bin/apt")
+        removed_packages = []
+
+        try:
+            if is_dreamos:
+                installed_output = subprocess.check_output("apt-list --installed", shell=True, stderr=subprocess.STDOUT).decode('utf-8', errors='ignore')
+                for pkg in packages_list:
+                    if pkg in installed_output:
+                        os.system("apt-get remove -y --purge %s > /dev/null 2>&1" % pkg)
+                        removed_packages.append(pkg)
+                os.system("apt-get autoremove -y > /dev/null 2>&1")
+            else:
+                installed_output = subprocess.check_output("opkg list-installed", shell=True, stderr=subprocess.STDOUT).decode('utf-8', errors='ignore')
+                for pkg in packages_list:
+                    if pkg in installed_output:
+                        os.system("opkg remove --force-depends %s > /dev/null 2>&1" % pkg)
+                        removed_packages.append(pkg)
+                os.system("opkg configure > /dev/null 2>&1")
+        except Exception as e:
+            print("[ServerEagleSat Submenu] Package Tracking Exception Handler triggered:", e)
+
+        # Build dynamic readout text summarizing findings
+        if removed_packages:
+            summary_msg = "The following softcam packages have been completely uninstalled:\n"
+            summary_msg += "---------------------------------------------------------\n"
+            for p in removed_packages:
+                summary_msg += f"• {p}\n"
+            summary_msg += "\n:تم إزالة الحزم التالية بنجاح"
+        else:
+            summary_msg = "No softcam system packages were found active.\nلم يتم العثور على حزم نظام مثبتة للإيموهات.\n"
+
+        summary_msg += "\n\nDo you want to remove configurations and keys data?\nهل تريد حذف ملفات الإعدادات ومفاتيح الشفرات؟"
+
+        # Show summary info display screen context directly combined inside the primary prompt question box
+        self.session.openWithCallback(self.askRemoveConfigs, MessageBox, summary_msg, MessageBox.TYPE_YESNO)
+
+    def askRemoveConfigs(self, answer):
+        """Phase 2: Dynamic filesystem configurations tracking clean up execution block."""
+        if answer:
+            os.system("rm -rf /etc/tuxbox/config > /dev/null 2>&1")
+            os.system("rm -rf /etc/tuxbox/gosatplus > /dev/null 2>&1")
+            os.system("rm -rf /etc/tuxbox/powercam > /dev/null 2>&1")
+            os.system("rm -rf /etc/tuxbox/ultracam > /dev/null 2>&1")
+            os.system("rm -rf /etc/CCcam.cfg > /dev/null 2>&1")
+            os.system("rm -rf /usr/keys/* > /dev/null 2>&1")
+        
+        # Immediate routing path to final hardware reboot prompt step
+        self.session.openWithCallback(self.processRebootAnswer, MessageBox, "Do you want to reboot your STB to apply changes?\nهل تريد إعادة تشغيل الجهاز لتطبيق التغييرات؟", MessageBox.TYPE_YESNO)
+
+    def processRebootAnswer(self, answer):
+        """Phase 3: Force global system device environment reboot sequence."""
+        if answer:
+            os.system("reboot")
+
     def keyOK(self):
         self.runScript()
 
+    def openPluginBrowser(self):
+        """Safely opens the native setup panel downloadable extensions list"""
+        try:
+            from Screens.PluginBrowser import PluginDownloadBrowser
+            self.session.open(PluginDownloadBrowser, 0)
+        except Exception as e:
+            print("[ServerEagleSat Submenu] PluginDownloadBrowser import failed:", e)
+            try:
+                from Screens.PluginBrowser import PluginBrowser
+                self.session.open(PluginBrowser)
+            except Exception as e2:
+                print("[ServerEagleSat Submenu] Completely failed to access plugin structures:", e2)
+
     def cccam(self):
-        # Green button triggers the script installation too
         self.runScript()
 
     def keyNumberGlobal(self, number):
         if number == 0:
+            from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
             self.session.open(Console, _("Updating..."), [
                 "wget --no-check-certificate https://raw.githubusercontent.com/eliesat/eliesatpanel/main/installer.sh -qO - | /bin/sh"
             ])
@@ -231,6 +355,7 @@ class Eagle5(Screen):
     def scriptslist(self): pass
 
     def infoKey(self):
+        from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
         self.session.open(Console, _("Please wait..."), [
             "wget --no-check-certificate https://gitlab.com/eliesat/scripts/-/raw/main/check/_check-all.sh -qO - | /bin/sh"
         ])
