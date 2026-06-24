@@ -67,7 +67,7 @@
     </widget>
 
     <eLabel position="56,127" size="525,41" zPosition="3" backgroundColor="#000000" />
-    <eLabel text="Multistram Addons Installation" position="370,127" size="525,51" zPosition="4" font="Bold;32" halign="center" valign="center" foregroundColor="#E6BE3A" backgroundColor="#000000" />
+    <eLabel text="Multistream Addons Installation" position="370,127" size="525,51" zPosition="4" font="Bold;32" halign="center" valign="center" foregroundColor="#E6BE3A" backgroundColor="#000000" />
 
     <widget source="menu" render="Listbox" position="52,200" size="1161,600" backgroundColorSelected="#2A2A2A" listOrientation="vertical" itemHeight="60" scrollbarMode="showOnDemand" transparent="1" noWrap="0">
         <convert type="TemplatedMultiContent">
