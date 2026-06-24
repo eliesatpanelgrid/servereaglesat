@@ -20,38 +20,38 @@
     <eLabel position="50,127" size="2,671" zPosition="2" backgroundColor="#E6BE3A" />
     <eLabel position="1215,127" size="2,671" zPosition="2" backgroundColor="#E6BE3A" />
 
-    <widget source="MemoryLabel" render="Label" position="1230,200" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="memTotal" render="Label" position="1400,200" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="MemoryLabel" render="Label" position="1160,200" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="memTotal"    render="Label" position="1330,200" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="SwapLabel" render="Label" position="1230,241" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="swapTotal" render="Label" position="1400,241" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="SwapLabel" render="Label" position="1160,241" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="swapTotal" render="Label" position="1330,241" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="FlashLabel" render="Label" position="1230,281" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="flashTotal" render="Label" position="1400,281" size="340,70" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="FlashLabel" render="Label" position="1160,281" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="flashTotal" render="Label" position="1330,281" size="400,70" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="ImageLabel" render="Label" position="1230,362" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="Image" render="Label" position="1400,362" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="ImageLabel" render="Label" position="1160,362" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="Image"      render="Label" position="1330,362" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="pythonLabel" render="Label" position="1230,403" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="python" render="Label" position="1400,403" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="pythonLabel" render="Label" position="1160,403" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="python"      render="Label" position="1330,403" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="EnigmaVersionLabel" render="Label" position="1230,443" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="EnigmaVersion" render="Label" position="1400,443" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="EnigmaVersionLabel" render="Label" position="1160,443" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="EnigmaVersion"      render="Label" position="1330,443" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="driverLabel" render="Label" position="1230,524" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="driver" render="Label" position="1400,524" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="driverLabel" render="Label" position="1160,524" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="driver"      render="Label" position="1330,524" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="KernelLabel" render="Label" position="1230,565" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="Kernel" render="Label" position="1400,565" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="KernelLabel" render="Label" position="1160,565" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="Kernel"      render="Label" position="1330,565" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="gstreamerLabel" render="Label" position="1230,606" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="gstreamer" render="Label" position="1400,606" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="gstreamerLabel" render="Label" position="1160,606" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="gstreamer"      render="Label" position="1330,606" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="HardwareLabel" render="Label" position="1230,686" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="Hardware" render="Label" position="1400,686" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="HardwareLabel" render="Label" position="1160,686" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="Hardware"      render="Label" position="1330,686" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
-    <widget source="CPULabel" render="Label" position="1230,726" size="150,40" font="Regular;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
-    <widget source="CPU" render="Label" position="1400,726" size="340,40" font="Regular;24" halign="left" foregroundColor="foreground" transparent="1" />
+    <widget source="CPULabel" render="Label" position="1160,726" size="150,40" font="lsat;24" halign="right" foregroundColor="#E6BE3A" transparent="1" />
+    <widget source="CPU"      render="Label" position="1330,726" size="400,40" font="lsat;24" halign="left"  foregroundColor="foreground" transparent="1" />
 
     <widget source="ipLabel" render="Label" position="168,60" zPosition="6" size="150,32" font="Regular;24" halign="right" valign="center" foregroundColor="#E6BE3A" transparent="1" />
     <widget source="ipInfo" render="Label" position="328,60" zPosition="6" size="309,32" font="Regular;24" halign="left" valign="center" foregroundColor="#E6BE3A" transparent="1" />
