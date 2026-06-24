@@ -69,7 +69,7 @@
     <eLabel position="56,127" size="525,41" zPosition="3" backgroundColor="#000000" />
     <eLabel text="Add New Reader ..." position="370,127" size="525,51" zPosition="4" font="Bold;32" halign="center" valign="center" foregroundColor="#E6BE3A" backgroundColor="#000000" />
 
-    <widget name="config" position="52,200" size="1161,600" itemHeight="50" font="Regular;26" secondFont="Regular;24" backgroundColorSelected="#2A2A2A" scrollbarMode="showOnDemand" transparent="1" />
+    <widget name="config" position="52,200" size="1161,600" itemHeight="50" font="Console;30" secondFont="Regular;27" backgroundColorSelected="#2A2A2A" scrollbarMode="showOnDemand" transparent="1" />
 
     <widget name="boxicon" position="1230,808" size="520,140" zPosition="6" alphatest="blend" transparent="1" halign="center" valign="center" />
 
