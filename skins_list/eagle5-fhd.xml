@@ -89,7 +89,7 @@
     <widget name="boxicon" position="1230,808" size="520,140" zPosition="6" alphatest="blend" transparent="1" halign="center" valign="center" />
 
     <ePixmap position="183,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_red.png" transparent="1" alphatest="blend" />
-    <eLabel text="Remove" position="233,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
+    <eLabel text="RemoveAllEmus" position="233,830" size="200,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
 
     <ePixmap position="443,830" size="35,35" zPosition="6" pixmap="/usr/lib/enigma2/python/Plugins/Extensions/ServerEagleSat/icons_list/key_green.png" transparent="1" alphatest="blend" />
     <eLabel text="Install" position="493,830" size="120,35" zPosition="6" font="Regular;26" halign="left" valign="center" foregroundColor="#ffffff" transparent="1" />
