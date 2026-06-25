@@ -1,13 +1,17 @@
 # -*- coding: utf-8 -*-
 
 from Screens.Screen import Screen
+from Screens.MessageBox import MessageBox  # Imported for UI notifications
 from enigma import getDesktop
 
 # Import your direct hardware helper class
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
-# Import your standalone network helpers
-from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet
+# Import your standalone network helpers and softcam control helper
+from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet, restart_softcam_services
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
+
+# Import Eagle4 class from your submenus package
+from Plugins.Extensions.ServerEagleSat.submenus_list.Eagle4 import Eagle4
 
 import os
 from threading import Timer
@@ -71,8 +75,8 @@ class Eagle6(Screen):
                 "red": self.iptv,
                 "info": self.infoKey,
                 "green": self.cccam,
-                "yellow": self.grid,
-                "blue": self.scriptslist,
+                "yellow": self.restartSoftcam,  # Mapped to Softcam Restart Method
+                "blue": self.openEagle4,         # Mapped to Eagle4 Launcher Method
             }
         )
 
@@ -80,11 +84,11 @@ class Eagle6(Screen):
         self["left_bar"] = Label("\n".join(list("Version " + Version)))
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
 
-        # COLOR KEYS LABELS
+        # COLOR KEYS LABELS (Updated text alignment for the UI)
         self["key_red"] = Label("Remove Keys")
         self["key_green"] = Label("Install Keys")
-        self["key_yellow"] = Label("News")
-        self["key_blue"] = Label("Scripts")
+        self["key_yellow"] = Label("Restart Softcam")
+        self["key_blue"] = Label("Eagle4 Menu")
 
         # MENU INITIALIZATION
         self.list = []
@@ -256,8 +260,23 @@ class Eagle6(Screen):
         """Green Button - Acts exactly like the OK button."""
         self.keyOK()
 
-    def grid(self): pass
-    def scriptslist(self): pass
+    def restartSoftcam(self):
+        """Yellow Button - Executes the imported restart_softcam_services helper function."""
+        try:
+            success, message = restart_softcam_services()
+            if success:
+                self.session.open(MessageBox, _("Softcam restarted successfully!"), MessageBox.TYPE_INFO, timeout=4)
+            else:
+                self.session.open(MessageBox, _("Failed to restart Softcam:\n%s") % message, MessageBox.TYPE_ERROR)
+        except Exception as e:
+            self.session.open(MessageBox, _("Error running softcam control:\n%s") % str(e), MessageBox.TYPE_ERROR)
+
+    def openEagle4(self):
+        """Blue Button - Opens the imported Eagle4 screen."""
+        try:
+            self.session.open(Eagle4)
+        except Exception as e:
+            print("[ServerEagleSat Submenu] Failed to open Eagle4 Screen:", e)
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
