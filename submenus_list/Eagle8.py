@@ -2,12 +2,13 @@
 
 from Screens.Screen import Screen
 from Screens.VirtualKeyBoard import VirtualKeyBoard
+from Screens.MessageBox import MessageBox  # Cleanly imported at top level
 from enigma import getDesktop, gFont
 
 # Import your direct hardware helper class
 from Plugins.Extensions.ServerEagleSat.menus_list.mainhelpers import SystemInfo
-# Import your standalone network helpers
-from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet
+# Import your standalone network helpers and softcam control helper
+from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, check_internet, restart_softcam_services
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
 
 import os
@@ -71,7 +72,7 @@ class Eagle8(Screen):
 
         # COLOR KEYS LABELS
         self["key_red"] = Label("Remove Line")
-        self["key_green"] = Label("Save Changes")
+        self["key_green"] = Label("Save & Restart")
         self["key_yellow"] = Label("OSCam Server")
         self["key_blue"] = Label("NCam Server")
 
@@ -205,22 +206,17 @@ class Eagle8(Screen):
         selected_item = self.list[current_index]
         current_text = selected_item[0]
 
-        # Don't drop error warnings if no real file layout exists
         if "file not found" in current_text or "Error reading" in current_text:
             return
 
-        # Remove line sequence row element from virtual screen array
         del self.list[current_index]
-
-        # Refresh component container update variables layout
         self["menu"].setList(self.list)
 
-        # Keep selection pointer context locked nicely inside array length limits
         if current_index >= len(self.list):
             self["menu"].setIndex(max(0, len(self.list) - 1))
 
     def saveChanges(self):
-        """Bound to Green button. Writes active list changes systematically back into the config file."""
+        """Bound to Green button. Writes active list changes systematically back into the config file and restarts services."""
         if not self.current_file_path or not os.path.exists(self.current_file_path):
             return
 
@@ -232,10 +228,16 @@ class Eagle8(Screen):
             with open(self.current_file_path, "w") as f:
                 f.write(output_content)
 
-            from Screens.MessageBox import MessageBox
-            self.session.open(MessageBox, _("Changes successfully saved to %s!" % os.path.basename(self.current_file_path)), MessageBox.TYPE_INFO, timeout=3)
+            # Trigger automated service ecosystem softcam restart sequence cleanly
+            success, message = restart_softcam_services()
+            
+            filename_base = os.path.basename(self.current_file_path)
+            if success:
+                self.session.open(MessageBox, _("Changes saved to %s!\nSoftcam restarted successfully." % filename_base), MessageBox.TYPE_INFO, timeout=4)
+            else:
+                self.session.open(MessageBox, _("Changes saved to %s!\nSoftcam restart notice:\n%s" % (filename_base, message)), MessageBox.TYPE_INFO)
+                
         except Exception as e:
-            from Screens.MessageBox import MessageBox
             self.session.open(MessageBox, _("Failed to save changes:\n%s" % str(e)), MessageBox.TYPE_ERROR)
 
     def loadBoxIcon(self):
