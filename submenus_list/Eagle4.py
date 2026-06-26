@@ -40,6 +40,10 @@ class Eagle4(Screen):
         Screen.__init__(self, session)
         self.session = session
 
+        # Track full configuration state internally
+        self.softcam_path = None
+        self.raw_lines = []
+
         # Read layout template
         try:
             skin_file = resolveFilename(SCOPE_PLUGINS, "Extensions/ServerEagleSat/skins_list/eagle4-fhd.xml")
@@ -49,25 +53,25 @@ class Eagle4(Screen):
             print("[ServerEagleSat Submenu] Critical Error Reading Skin File:", e)
             self.skin = "<screen name='ServerEagleSat' position='center,center' size='1800,980' backgroundColor='#000000'/>"
 
-        self.setTitle(_("ServerEagleSat - SoftCam Manager"))
+        self.setTitle(_("ServerEagleSat - SoftCam Key Editor"))
         self.indexpos = None
         
         # Initialize your core info manager for hardware specifications
         self.system_info = SystemInfo()
 
-        # ACTIONS (Directions handle custom list index changes)
+        # ACTIONS
         self["NumberActions"] = NumberActionMap(["NumberActions"], {'0': self.keyNumberGlobal})
         self["shortcuts"] = NumberActionMap(
             ["ShortcutActions", "WizardActions", "ColorActions", "HotkeyActions", "DirectionActions"],
             {
-                "ok": self.keyOK,
+                "ok": self.keyOK,                   # OK button edits the key inline
                 "cancel": self.exit,
                 "back": self.exit,
-                "red": self.iptv,
+                "red": self.removeSelectedLine,     # Red button visually deletes line
                 "info": self.infoKey,
-                "green": self.cccam,
+                "green": self.saveChanges,          # Green button commits everything & restarts
                 "yellow": self.grid,
-                "blue": self.addBissKey,
+                "blue": self.addBissKey,            # Keeps your automated new BISS generation tool
                 "up": self.moveUp,
                 "down": self.moveDown
             }
@@ -188,17 +192,17 @@ class Eagle4(Screen):
                 with open(self.softcam_path, "r", encoding="utf-8") as f:
                     for line in f:
                         clean_line = line.strip()
-                        if clean_line and not clean_line.startswith("#"):
+                        if clean_line:
                             self.raw_lines.append(clean_line)
                             
-                            # Split key instruction from channel text comment safely
-                            parts = clean_line.split(";", 1)
-                            key_part = parts[0].strip()
-                            comment_part = parts[1].strip() if len(parts) > 1 else ""
-                            
-                            # Maps explicitly into your TemplatedMultiContent parameters:
-                            # pos 0: Text (Left), pos 2: Text (Right), pos 3: Pixmap (Icon)
-                            self.list.append((key_part, "", comment_part, self.key_icon))
+                            # Visual parse implementation for list display
+                            if clean_line.startswith("#"):
+                                self.list.append((clean_line, "", "", None))
+                            else:
+                                parts = clean_line.split(";", 1)
+                                key_part = parts[0].strip()
+                                comment_part = parts[1].strip() if len(parts) > 1 else ""
+                                self.list.append((key_part, "", comment_part, self.key_icon))
             else:
                 self.list.append((get_translation("file_not_exist"), "", "", None))
             
@@ -206,6 +210,80 @@ class Eagle4(Screen):
         except Exception as e:
             print("[Eagle4] SoftCam parsing stream skin connection failure:", e)
             self["menu"].setList([(get_translation("file_read_error").format(str(e)), "", "", None)])
+
+    def keyOK(self):
+        """Bound to OK button. Launches Virtual Keyboard to edit the raw configuration line string directly."""
+        if not self.raw_lines:
+            return
+
+        current_index = self["menu"].getIndex()
+        if current_index >= len(self.raw_lines):
+            return
+
+        current_text = self.raw_lines[current_index]
+        self.session.openWithCallback(self.virtualKeyBoardCallback, VirtualKeyBoard, title=_("Modify SoftCam Line:"), text=current_text)
+
+    def virtualKeyBoardCallback(self, callback_string):
+        """Applies configuration text changes to the UI representation array loop."""
+        if callback_string is not None:
+            current_index = self["menu"].getIndex()
+            
+            # Update the underlying raw line list tracker
+            self.raw_lines[current_index] = callback_string.strip()
+            
+            # Map into UI component structure array presentation split instantly
+            clean_line = callback_string.strip()
+            if clean_line.startswith("#"):
+                self.list[current_index] = (clean_line, "", "", None)
+            else:
+                parts = clean_line.split(";", 1)
+                key_part = parts[0].strip()
+                comment_part = parts[1].strip() if len(parts) > 1 else ""
+                self.list[current_index] = (key_part, "", comment_part, self.key_icon)
+
+            self["menu"].setList(self.list)
+
+    def removeSelectedLine(self):
+        """Bound to Red button. Drops line array indexes from active view memory stack."""
+        if not self.raw_lines or not self.list:
+            return
+
+        current_index = self["menu"].getIndex()
+        if current_index >= len(self.raw_lines):
+            return
+
+        del self.raw_lines[current_index]
+        del self.list[current_index]
+        
+        self["menu"].setList(self.list)
+
+        if current_index >= len(self.list):
+            self["menu"].setIndex(max(0, len(self.list) - 1))
+
+    def saveChanges(self):
+        """Bound to Green button. Commits memory adjustments safely to SoftCam.Key files on disk and flashes emulation profiles."""
+        if not self.softcam_path:
+            return
+
+        try:
+            base_dir = os.path.dirname(self.softcam_path)
+            output_content = "\n".join(self.raw_lines) + "\n"
+
+            # Mirror exact parameters safely across both lowercase and uppercase systems
+            for filename in ["SoftCam.Key", "softcam.key"]:
+                target_path = os.path.join(base_dir, filename)
+                os.makedirs(os.path.dirname(target_path), exist_ok=True)
+                with open(target_path, "w", encoding="utf-8") as f:
+                    f.write(output_content)
+
+            # Execution hook sequences update loop engine
+            restart_oscam()
+            self.loadFile()
+
+            self.session.open(MessageBox, _("SoftCam file updated successfully!\nSoftcam service refreshed."), MessageBox.TYPE_INFO, timeout=4)
+        except Exception as e:
+            print(f"[Eagle4] Target file writing error sequence failure stack: {e}")
+            self.session.open(MessageBox, f"Error saving file:\n{str(e)}", MessageBox.TYPE_ERROR)
 
     def addBissKey(self):
         """Spawns system Virtual Keyboard frame screen."""
@@ -228,15 +306,17 @@ class Eagle4(Screen):
 
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sid_vpid = f"{self.sid}{self.vpid}"
-        line = f"F {sid_vpid} 00 {formatted_key} ; {self.channel_name} - {current_time}\n"
+        line = f"F {sid_vpid} 00 {formatted_key} ; {self.channel_name} - {current_time}"
 
         try:
             base_dir = os.path.dirname(self.softcam_path)
+            search_pattern = f"F {sid_vpid} 00"
+
             for filename in ["SoftCam.Key", "softcam.key"]:
                 target_path = os.path.join(base_dir, filename)
-                self._writeToFile(target_path, line, f"F {sid_vpid} 00")
+                self._writeToFile(target_path, line + "\n", search_pattern)
 
-            # Force live list conversion recalculation update loop
+            # Dynamic refresh tracking loops optimization hook
             restart_oscam()
             self.loadFile()
 
@@ -296,11 +376,6 @@ class Eagle4(Screen):
         except:
             pass
         return "Current Channel"
-
-    # --- ENGINE CONTROLS INTERFACES ---
-
-    def keyOK(self):
-        pass
 
     def keyNumberGlobal(self, number):
         if number == 0:
