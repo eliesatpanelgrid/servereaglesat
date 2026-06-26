@@ -10,6 +10,7 @@ from Plugins.Extensions.ServerEagleSat.menus_list.Helpers import get_local_ip, c
 from Plugins.Extensions.ServerEagleSat.menus_list.Console import Console
 
 import os
+import shutil
 from datetime import datetime
 from threading import Timer
 
@@ -43,6 +44,10 @@ class Eagle4(Screen):
         # Track full configuration state internally
         self.softcam_path = None
         self.raw_lines = []
+        
+        # Define backup parameters
+        self.backup_dir = "/media/hdd/ServerEagleSat"
+        self.backup_path = os.path.join(self.backup_dir, "SoftCam.Key")
 
         # Read layout template
         try:
@@ -69,8 +74,8 @@ class Eagle4(Screen):
                 "back": self.exit,
                 "red": self.removeSelectedLine,     # Red button visually deletes line
                 "info": self.infoKey,
-                "green": self.saveChanges,          # Green button commits everything & restarts
-                "yellow": self.grid,
+                "green": self.saveChanges,          # Green button commits, backups & restarts EMU
+                "yellow": self.restoreBackup,       # Yellow button restores backup if found
                 "blue": self.addBissKey,            # Keeps your automated new BISS generation tool
                 "up": self.moveUp,
                 "down": self.moveDown
@@ -261,7 +266,7 @@ class Eagle4(Screen):
             self["menu"].setIndex(max(0, len(self.list) - 1))
 
     def saveChanges(self):
-        """Bound to Green button. Commits memory adjustments safely to SoftCam.Key files on disk and flashes emulation profiles."""
+        """Bound to Green button. Commits modifications, updates system files, forces background engine restart, and performs automated backup."""
         if not self.softcam_path:
             return
 
@@ -276,14 +281,55 @@ class Eagle4(Screen):
                 with open(target_path, "w", encoding="utf-8") as f:
                     f.write(output_content)
 
-            # Execution hook sequences update loop engine
+            # Execution hook sequences: Restart Cam Engine & Refresh active view stream
             restart_oscam()
             self.loadFile()
 
-            self.session.open(MessageBox, _("SoftCam file updated successfully!\nSoftcam service refreshed."), MessageBox.TYPE_INFO, timeout=4)
+            # Execute explicit backup to HDD path (replacing old files on conflict)
+            try:
+                os.makedirs(self.backup_dir, exist_ok=True)
+                shutil.copy2(self.softcam_path, self.backup_path)
+                backup_msg = "\nBackup updated successfully in HDD."
+            except Exception as bk_err:
+                print(f"[Eagle4] HDD Backup Stream Interrupted: {bk_err}")
+                backup_msg = "\n(Warning: HDD Backup failed!)"
+
+            self.session.open(MessageBox, _("SoftCam file updated successfully!\nCam Engine restarted and UI refreshed.") + backup_msg, MessageBox.TYPE_INFO, timeout=4)
         except Exception as e:
             print(f"[Eagle4] Target file writing error sequence failure stack: {e}")
             self.session.open(MessageBox, f"Error saving file:\n{str(e)}", MessageBox.TYPE_ERROR)
+
+    def restoreBackup(self):
+        """Bound to Yellow button. Checks path parameters and runs interactive target restore process."""
+        if os.path.exists(self.backup_path):
+            self.session.openWithCallback(
+                self.restoreBackupCallback,
+                MessageBox,
+                _("A backup file is found.\nDo you want to restore it?"),
+                MessageBox.TYPE_YESNO
+            )
+        else:
+            self.session.open(MessageBox, _("No backup file found in /media/hdd/ServerEagleSat/"), MessageBox.TYPE_ERROR, timeout=3)
+
+    def restoreBackupCallback(self, answer):
+        """Executes actual file copying stack from backup root to main emulator space."""
+        if answer and self.softcam_path:
+            try:
+                base_dir = os.path.dirname(self.softcam_path)
+                
+                # Copy properties back to both naming configurations
+                for filename in ["SoftCam.Key", "softcam.key"]:
+                    target_path = os.path.join(base_dir, filename)
+                    shutil.copy2(self.backup_path, target_path)
+
+                # Flash engine and visual representation layers instantly
+                restart_oscam()
+                self.loadFile()
+                
+                self.session.open(MessageBox, _("Backup restored successfully!\nCam Engine restarted."), MessageBox.TYPE_INFO, timeout=4)
+            except Exception as e:
+                print(f"[Eagle4] Execution crash logic on asset recovery: {e}")
+                self.session.open(MessageBox, f"Error restoring backup:\n{str(e)}", MessageBox.TYPE_ERROR)
 
     def addBissKey(self):
         """Spawns system Virtual Keyboard frame screen."""
@@ -394,7 +440,6 @@ class Eagle4(Screen):
 
     def iptv(self): pass
     def cccam(self): pass
-    def grid(self): pass
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
