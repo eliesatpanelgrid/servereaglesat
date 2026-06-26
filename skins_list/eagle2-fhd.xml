@@ -73,13 +73,13 @@
         <convert type='TemplatedMultiContent'>
         {
             'template': [
-                MultiContentEntryPixmapAlphaTest(pos = (10, 20), size = (44, 44), png = 3),
-                MultiContentEntryText(pos = (70, 17), size = (430, 40), font = 0, flags = RT_HALIGN_LEFT, text = 0),
-                MultiContentEntryText(pos = (420, 10), size = (720, 40), font = 1, flags = RT_HALIGN_LEFT, text = 2)
+                MultiContentEntryPixmapAlphaTest(pos = (10, 8), size = (44, 44), png = 3),
+                MultiContentEntryText(pos = (70, 4), size = (1070, 32), font = 0, flags = RT_HALIGN_LEFT, text = 0),
+                MultiContentEntryText(pos = (70, 34), size = (1070, 24), font = 1, flags = RT_HALIGN_LEFT, text = 2)
             ],
             'fonts': [
-                gFont('Console', 30),
-                gFont('Regular', 24)
+                gFont('Console', 28),
+                gFont('Regular', 18)
             ],
             'itemHeight': 60
         }
