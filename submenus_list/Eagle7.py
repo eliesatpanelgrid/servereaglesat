@@ -53,11 +53,8 @@ class Eagle7(Screen):
                 "ok": self.keyOK,
                 "cancel": self.exit,
                 "back": self.exit,
-                "red": self.iptv,
                 "info": self.infoKey,
                 "green": self.cccam,
-                "yellow": self.grid,
-                "blue": self.scriptslist,
             }
         )
 
@@ -66,10 +63,7 @@ class Eagle7(Screen):
         self["right_bar"] = Label("\n".join(list("By ElieSat")))
 
         # COLOR KEYS LABELS
-        self["key_red"] = Label("Iptv Adder")
         self["key_green"] = Label("Install")
-        self["key_yellow"] = Label("News")
-        self["key_blue"] = Label("Scripts")
 
         # MENU INITIALIZATION
         self.list = []
@@ -198,10 +192,6 @@ class Eagle7(Screen):
 
     def exit(self):
         self.close()
-
-    def iptv(self): pass
-    def grid(self): pass
-    def scriptslist(self): pass
 
     def infoKey(self):
         self.session.open(Console, _("Please wait..."), [
