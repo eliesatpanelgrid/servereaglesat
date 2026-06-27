@@ -67,19 +67,19 @@
     </widget>
 
     <eLabel position="56,127" size="525,41" zPosition="3" backgroundColor="#000000" />
-    <eLabel text="Not Available10 ..." position="370,127" size="525,51" zPosition="4" font="Bold;32" halign="center" valign="center" foregroundColor="#E6BE3A" backgroundColor="#000000" />
+    <eLabel text="Server Eagle" position="370,127" size="525,51" zPosition="4" font="Bold;32" halign="center" valign="center" foregroundColor="#E6BE3A" backgroundColor="#000000" />
 
     <widget source="menu" render="Listbox" position="52,200" size="1161,600" backgroundColorSelected="#2A2A2A" listOrientation="vertical" itemHeight="60" scrollbarMode="showOnDemand" transparent="1" noWrap="0">
         <convert type="TemplatedMultiContent">
         {
             "template": [
-                MultiContentEntryPixmapAlphaTest(pos = (10, 5), size = (44, 44), png = 3),
-                MultiContentEntryText(pos = (70, 17), size = (430, 40), font = 0, flags = RT_HALIGN_LEFT, text = 0),
-                MultiContentEntryText(pos = (520, 10), size = (620, 40), font = 1, flags = RT_HALIGN_LEFT, text = 2)
+                MultiContentEntryPixmapAlphaTest(pos = (10, 8), size = (44, 44), png = 3),
+                MultiContentEntryText(pos = (70, 4), size = (1070, 32), font = 0, flags = RT_HALIGN_LEFT, text = 2),
+                MultiContentEntryText(pos = (70, 34), size = (1070, 24), font = 1, flags = RT_HALIGN_LEFT, text = 0)
             ],
             "fonts": [
-                gFont("Console", 30),
-                gFont("Regular", 24)
+                gFont("Console", 28),
+                gFont("Regular", 18)
             ],
             "itemHeight": 60
         }
